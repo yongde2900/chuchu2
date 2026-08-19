@@ -1,9 +1,10 @@
 // Command api 是包租代管服務的進入點。
 //
 // 組裝順序：config.Load → logging.New → 開 Postgres／Redis 連線 → 組
-// health.Service → server.NewRouter（掛上 health.Mount）→ server.Run。
-// 設定載入失敗時把訊息寫到 stderr 並以非 0 code 結束；成功則啟動 HTTP server，
-// 收到 SIGINT/SIGTERM 時優雅關閉。
+// health.Service → pgrepo.New(db) → property.NewService(repo) →
+// httpapi.NewHandler(svc, logger) → server.NewRouter（掛上 health.Mount 與
+// propertyHandler.Mount）→ server.Run。設定載入失敗時把訊息寫到 stderr 並以
+// 非 0 code 結束；成功則啟動 HTTP server，收到 SIGINT/SIGTERM 時優雅關閉。
 //
 // 啟動時會對 Postgres／Redis 各做一次連線驗證，但連不上時只記錄警告、
 // 不會讓服務啟動失敗 —— 服務仍會啟動並持續回應請求，讓 GET /healthz
@@ -26,6 +27,9 @@ import (
 	"github.com/yongde2900/chuchu2/internal/platform/logging"
 	"github.com/yongde2900/chuchu2/internal/platform/postgres"
 	"github.com/yongde2900/chuchu2/internal/platform/redisclient"
+	"github.com/yongde2900/chuchu2/internal/property"
+	"github.com/yongde2900/chuchu2/internal/property/httpapi"
+	"github.com/yongde2900/chuchu2/internal/property/pgrepo"
 	"github.com/yongde2900/chuchu2/internal/server"
 )
 
@@ -77,10 +81,14 @@ func run() int {
 		health.NewRedisChecker(redisClient),
 	)
 
+	propertyRepo := pgrepo.New(db)
+	propertySvc := property.NewService(propertyRepo)
+	propertyHandler := httpapi.NewHandler(propertySvc, logger)
+
 	router := server.NewRouter(server.Options{
 		Debug:  cfg.Server.Debug,
 		Logger: logger,
-	}, health.Mount(healthSvc))
+	}, health.Mount(healthSvc), propertyHandler.Mount())
 
 	addr := net.JoinHostPort("", strconv.Itoa(cfg.Server.Port))
 	if err := server.Run(ctx, addr, router, cfg.Server.ShutdownTimeout, logger); err != nil {

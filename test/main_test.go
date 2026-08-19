@@ -8,20 +8,25 @@
 // 專屬容器（例如斷線情境），語意上和這裡的「package 共用、活到 package
 // 結束」不同，本來就該是兩條路。
 //
-// 注意：本 task（Task 3）刻意不在這裡跑任何 migration —— internal/migrate
-// 是 Task 4 的產出，現在還不存在。Task 4 會在這個 TestMain 起完容器之後
-// 接上 migrate.Up。
+// 起完共用容器後，這裡會對共用 Postgres 容器跑一次 migrate.Up，讓同 package
+// 內需要 properties 資料表的測試（Task 5–7）有資料表可用。
 package test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
+
+	"github.com/yongde2900/chuchu2/internal/migrate"
 )
 
 // sharedPostgresDSN、sharedRedisAddr 存放 TestMain 起的共用容器的連線資訊，
@@ -72,6 +77,11 @@ func runTestMain(m *testing.M) int {
 	}
 	sharedPostgresDSN = dsn
 
+	if err := migrateSharedPostgres(startCtx, dsn); err != nil {
+		fmt.Fprintf(os.Stderr, "TestMain: 對共用 postgres 測試容器套用 migration 失敗: %v\n", err)
+		return 1
+	}
+
 	redisCtr, err := tcredis.Run(startCtx, "redis:7-alpine")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "TestMain: 啟動共用 redis 測試容器失敗: %v\n", err)
@@ -96,4 +106,17 @@ func runTestMain(m *testing.M) int {
 	sharedRedisAddr = fmt.Sprintf("%s:%s", host, mappedPort.Port())
 
 	return m.Run()
+}
+
+// migrateSharedPostgres 對 dsn 開一個獨立的 *bun.DB 連線並套用一次
+// migrate.Up，讓共用 Postgres 容器在所有測試開始前就有 properties 資料表。
+// 這個連線只在套用 migration 期間短暫使用，用完即關閉，不會被存進共用狀態。
+func migrateSharedPostgres(ctx context.Context, dsn string) error {
+	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
+	defer sqldb.Close()
+
+	bunDB := bun.NewDB(sqldb, pgdialect.New())
+	defer bunDB.Close()
+
+	return migrate.Up(ctx, bunDB)
 }

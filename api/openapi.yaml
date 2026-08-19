@@ -4,8 +4,12 @@ info:
   description: 包租代管服務的對外 HTTP API。
   version: 0.1.0
 servers:
-  - url: http://localhost:8080
-    description: 本機開發環境
+  - url: /
+    description: |
+      相對路徑，不綁定特定 host——服務實際監聽的 host:port 由部署環境
+      （本機開發、測試、正式環境）決定。契約測試（test/contract_test.go）
+      正是靠這個相對 server URL，才能對測試中隨機取得的埠號比對路由，
+      不受限於固定的 host。
 
 paths:
   /healthz:
@@ -40,6 +44,290 @@ paths:
                 checks:
                   postgres: down
                   redis: ok
+
+  /api/v1/properties:
+    post:
+      summary: 建立一筆包租代管物件
+      description: |
+        新建物件的 status 一律為 VACANT，id 由服務端產生。
+        相同 city、district、street_address、floor、room_no 的物件視為重複建檔，會被拒絕。
+      operationId: createProperty
+      tags:
+        - properties
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePropertyRequest"
+            example:
+              city: "臺北市"
+              district: "大安區"
+              street_address: "復興南路一段 100 號"
+              floor: "5"
+              room_no: "A"
+              layout: "INDEPENDENT_SUITE"
+              area_ping: "8.50"
+              monthly_rent: "25000.50"
+              management_fee: "1200.00"
+              deposit_months: 2
+              rental_mode: "MASTER_LEASE"
+              landlord_name: "王大明"
+              landlord_phone: "0912345678"
+      responses:
+        "201":
+          description: 建檔成功。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          description: 請求內容未通過驗證。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: VALIDATION_FAILED
+                message: 驗證失敗
+                request_id: "01J..."
+                details:
+                  - field: monthly_rent
+                    reason: 必須大於 0
+        "409":
+          description: 相同門牌的物件已存在（重複建檔）。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: PROPERTY_DUPLICATE
+                message: 相同門牌的物件已存在
+                request_id: "01J..."
+    get:
+      summary: 分頁列出物件
+      description: |
+        固定以 created_at 由新到舊排序（同時間以 id 為次要排序鍵，避免分頁跳號）。
+        total 是套用篩選後、分頁前的總筆數，與回傳的 items 長度無關；
+        套用篩選後查無資料時，items 為空陣列 []，total 為 0。
+      operationId: listProperties
+      tags:
+        - properties
+      parameters:
+        - name: page
+          in: query
+          description: 頁碼（1-based）。未提供或非正整數時預設為 1。
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: 每頁筆數。未提供或非正整數時預設為 20，上限 100。
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: status
+          in: query
+          description: 依物件狀態篩選；未提供時不篩選。
+          schema:
+            type: string
+            enum:
+              - VACANT
+              - OCCUPIED
+              - RENOVATING
+              - DELISTED
+        - name: rental_mode
+          in: query
+          description: 依經營模式（包租／代管）篩選；未提供時不篩選。
+          schema:
+            type: string
+            enum:
+              - MASTER_LEASE
+              - MANAGED
+        - name: city
+          in: query
+          description: 依縣市篩選；未提供時不篩選。
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 查詢成功。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PropertyList"
+
+  /api/v1/properties/{id}:
+    get:
+      summary: 以 id 查詢單一物件
+      operationId: getProperty
+      tags:
+        - properties
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 物件 ID。
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: 查詢成功。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          description: id 不是合法的 UUID。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: VALIDATION_FAILED
+                message: 驗證失敗
+                request_id: "01J..."
+                details:
+                  - field: id
+                    reason: 必須是合法的 UUID
+        "404":
+          description: 查無指定的物件。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: PROPERTY_NOT_FOUND
+                message: 找不到指定的物件
+                request_id: "01J..."
+    patch:
+      summary: 更新物件欄位
+      description: |
+        區域性更新物件的非狀態欄位（租金、管理費、押金月數、格局、房東資訊）。
+        request body 中未出現的欄位視為「不更動」；刻意不接受 status 欄位——
+        變更狀態一律走 POST /api/v1/properties/{id}/status，不能透過 PATCH
+        繞過狀態機。任何成功的更新都會刷新 updated_at。
+      operationId: updateProperty
+      tags:
+        - properties
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 物件 ID。
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePropertyRequest"
+            example:
+              monthly_rent: "27000.00"
+      responses:
+        "200":
+          description: 更新成功，回傳更新後的完整物件。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          description: 請求內容未通過驗證，或 id 不是合法的 UUID。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: VALIDATION_FAILED
+                message: 驗證失敗
+                request_id: "01J..."
+                details:
+                  - field: monthly_rent
+                    reason: 必須大於 0
+        "404":
+          description: 查無指定的物件。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: PROPERTY_NOT_FOUND
+                message: 找不到指定的物件
+                request_id: "01J..."
+
+  /api/v1/properties/{id}/status:
+    post:
+      summary: 變更物件狀態
+      description: |
+        物件狀態變更的唯一入口，經由狀態機（見 property.CanTransition）檢查
+        合法性。合法的轉換：VACANT↔OCCUPIED、VACANT↔RENOVATING、
+        VACANT↔DELISTED、RENOVATING→DELISTED；其餘（含同狀態轉換，例如
+        VACANT→VACANT）一律非法。轉換非法時完全不會寫入資料庫。
+      operationId: changePropertyStatus
+      tags:
+        - properties
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: 物件 ID。
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeStatusRequest"
+            example:
+              status: RENOVATING
+      responses:
+        "200":
+          description: 轉換成功，回傳更新後的完整物件。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "400":
+          description: 請求內容未通過驗證（status 不是合法列舉值），或 id 不是合法的 UUID。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: VALIDATION_FAILED
+                message: 驗證失敗
+                request_id: "01J..."
+                details:
+                  - field: status
+                    reason: 必須是 VACANT、OCCUPIED、RENOVATING 或 DELISTED 之一
+        "404":
+          description: 查無指定的物件。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: PROPERTY_NOT_FOUND
+                message: 找不到指定的物件
+                request_id: "01J..."
+        "409":
+          description: 目前狀態不允許轉換到指定的目標狀態。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: PROPERTY_INVALID_STATUS_TRANSITION
+                message: 不允許把物件狀態從 DELISTED 轉換到 OCCUPIED
+                request_id: "01J..."
 
 components:
   schemas:
@@ -98,3 +386,223 @@ components:
           description: 每個相依服務的健康狀態，key 為服務名稱（例如 postgres、redis）。
           additionalProperties:
             type: string
+
+    CreatePropertyRequest:
+      type: object
+      description: |
+        建立物件的請求 body。金額欄位（area_ping、monthly_rent、management_fee）
+        一律是十進位數字的字串形式，不是 JSON number —— JSON number 無法在
+        JavaScript 客戶端往返而不損失十進位精度。
+      required:
+        - city
+        - district
+        - street_address
+        - floor
+        - room_no
+        - layout
+        - area_ping
+        - monthly_rent
+        - deposit_months
+        - rental_mode
+        - landlord_name
+        - landlord_phone
+      properties:
+        city:
+          type: string
+          description: 縣市，不可為空。
+        district:
+          type: string
+          description: 鄉鎮市區。
+        street_address:
+          type: string
+          description: 街道地址，不可為空。
+        floor:
+          type: string
+          description: 樓層。
+        room_no:
+          type: string
+          description: 房號。
+        layout:
+          type: string
+          description: 格局。
+          enum:
+            - WHOLE_UNIT
+            - INDEPENDENT_SUITE
+            - SHARED_SUITE
+            - SINGLE_ROOM
+        area_ping:
+          type: string
+          description: 坪數，十進位數字字串，必須大於 0。
+          pattern: "^\\d+(\\.\\d+)?$"
+        monthly_rent:
+          type: string
+          description: 月租金，十進位數字字串，必須大於 0。
+          pattern: "^\\d+(\\.\\d+)?$"
+        management_fee:
+          type: string
+          description: 管理費，十進位數字字串，未提供時預設為 0，不可為負數。
+          pattern: "^\\d+(\\.\\d+)?$"
+        deposit_months:
+          type: integer
+          description: 押金月數，不可為負數。
+        rental_mode:
+          type: string
+          description: |
+            經營模式——包租（MASTER_LEASE，業者向房東承租整個物件並轉租）或
+            代管（MANAGED，業者只負責管理，租約只有一份）。
+          enum:
+            - MASTER_LEASE
+            - MANAGED
+        landlord_name:
+          type: string
+          description: 房東姓名。
+        landlord_phone:
+          type: string
+          description: 房東電話。
+
+    UpdatePropertyRequest:
+      type: object
+      description: |
+        更新物件欄位的請求 body。所有欄位皆為選填——未出現的欄位視為
+        「不更動」。刻意沒有 status 欄位：變更狀態一律走
+        POST /api/v1/properties/{id}/status，不能透過這個 endpoint 繞過狀態機。
+        金額欄位（monthly_rent、management_fee）與 CreatePropertyRequest 一樣，
+        一律是十進位數字的字串形式，不是 JSON number。
+      properties:
+        monthly_rent:
+          type: string
+          description: 月租金，十進位數字字串，若提供必須大於 0。
+          pattern: "^\\d+(\\.\\d+)?$"
+        management_fee:
+          type: string
+          description: 管理費，十進位數字字串，若提供不可為負數。
+          pattern: "^\\d+(\\.\\d+)?$"
+        deposit_months:
+          type: integer
+          description: 押金月數，若提供不可為負數。
+        layout:
+          type: string
+          description: 格局，若提供必須是四個合法值之一。
+          enum:
+            - WHOLE_UNIT
+            - INDEPENDENT_SUITE
+            - SHARED_SUITE
+            - SINGLE_ROOM
+        landlord_name:
+          type: string
+          description: 房東姓名。
+        landlord_phone:
+          type: string
+          description: 房東電話。
+
+    ChangeStatusRequest:
+      type: object
+      description: 變更物件狀態的請求 body。
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          description: 目標狀態，必須是四個合法值之一；是否允許從目前狀態轉換過去由狀態機另行判斷。
+          enum:
+            - VACANT
+            - OCCUPIED
+            - RENOVATING
+            - DELISTED
+
+    Property:
+      type: object
+      description: 包租代管服務的物件（房源）主檔。
+      required:
+        - id
+        - city
+        - district
+        - street_address
+        - floor
+        - room_no
+        - layout
+        - area_ping
+        - monthly_rent
+        - management_fee
+        - deposit_months
+        - rental_mode
+        - status
+        - landlord_name
+        - landlord_phone
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 物件 ID，由服務端產生。
+        city:
+          type: string
+        district:
+          type: string
+        street_address:
+          type: string
+        floor:
+          type: string
+        room_no:
+          type: string
+        layout:
+          type: string
+          enum:
+            - WHOLE_UNIT
+            - INDEPENDENT_SUITE
+            - SHARED_SUITE
+            - SINGLE_ROOM
+        area_ping:
+          type: string
+          description: 坪數，十進位數字字串，固定兩位小數。
+          pattern: "^\\d+\\.\\d{2}$"
+        monthly_rent:
+          type: string
+          description: 月租金，十進位數字字串，固定兩位小數。
+          pattern: "^\\d+\\.\\d{2}$"
+        management_fee:
+          type: string
+          description: 管理費，十進位數字字串，固定兩位小數。
+          pattern: "^\\d+\\.\\d{2}$"
+        deposit_months:
+          type: integer
+        rental_mode:
+          type: string
+          enum:
+            - MASTER_LEASE
+            - MANAGED
+        status:
+          type: string
+          description: 新建物件一律為 VACANT。
+          enum:
+            - VACANT
+            - OCCUPIED
+            - RENOVATING
+            - DELISTED
+        landlord_name:
+          type: string
+        landlord_phone:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PropertyList:
+      type: object
+      description: 分頁列出物件的回應。
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          description: 當頁資料；查無資料時為空陣列（不是 null）。
+          items:
+            $ref: "#/components/schemas/Property"
+        total:
+          type: integer
+          description: 套用篩選後、分頁前的總筆數，與 items 長度無關。

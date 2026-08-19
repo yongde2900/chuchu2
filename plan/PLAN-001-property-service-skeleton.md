@@ -1,7 +1,9 @@
 # PLAN-001 — 包租代管系統：服務骨架 + 物件（房源）建檔與查詢垂直切片
 Created: 2026-08-19
-Status: in-progress
+Status: done
 Approved: 2026-08-19
+Verified: 2026-08-20（hars-verify 完成整合閘門：整支專案建置、全測試套件、
+  以及八個 Integration Scenario 逐一對已組裝系統實跑驗證）
 Working Directory: .
 BDD Spec: ./bdd/BDD-001-property-service-skeleton.feature
 Language: Go 1.26.2（開發機 darwin/arm64；module `github.com/yongde2900/chuchu2`）
@@ -415,7 +417,7 @@ Expected Goals (from BDD scenarios):
 - [x] Scenario Outline: 任一相依服務斷線時健康檢查回報不健康
 
 ### Task 4: properties 資料表 migration 與 cmd/dbmigrate
-Status: in-progress
+Status: done
 Directory: db, internal/migrate, cmd/dbmigrate
 Depends on: Task 1（config.Load、logging）、Task 3（postgres.Open、testsupport.StartPostgres）
 Pass threshold: 8.0
@@ -456,10 +458,10 @@ func Applied(ctx context.Context, db *bun.DB) ([]string, error)
   兩邊必須一致。
 - `down` 必須把資料表與索引乾淨地移除，讓 up→down→up 可重複執行。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: Migration 可正向套用亦可回滾
+- [x] Scenario: Migration 可正向套用亦可回滾
 
 ### Task 5: 物件領域模型、驗證與建檔（POST /api/v1/properties）
-Status: pending
+Status: done
 Directory: internal/property
 Depends on: Task 1（config）、Task 2（apperr、httpx、server.Mount）、Task 3（postgres.Open、testsupport）、Task 4（properties 資料表）
 Pass threshold: 8.5
@@ -562,12 +564,12 @@ func (h *Handler) Mount() server.Mount // /api/v1/properties 相關路由
   帶 `details`）、409（PROPERTY_DUPLICATE）三種回應，以及 `Property` 與 `CreatePropertyRequest`
   兩個 schema。金額欄位宣告為 `type: string`，不是 number。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 建立一筆包租物件
-- [ ] Scenario: 相同門牌重複建檔被拒絕
-- [ ] Scenario Outline: 欄位驗證失敗時回報是哪個欄位出錯
+- [x] Scenario: 建立一筆包租物件
+- [x] Scenario: 相同門牌重複建檔被拒絕
+- [x] Scenario Outline: 欄位驗證失敗時回報是哪個欄位出錯
 
 ### Task 6: 物件查詢 —— 單筆查詢、分頁列表與條件篩選
-Status: pending
+Status: done
 Directory: internal/property
 Depends on: Task 5（Property、Repository、Service、pgrepo、httpapi 全部既有結構）
 Provides (public interface):
@@ -606,13 +608,13 @@ func (s *Service) List(ctx context.Context, f ListFilter) (ListResult, error)
   `GET /api/v1/properties`（200，含五個查詢參數的宣告），以及 `PropertyList` schema
   （`items` 陣列 + `total` 整數）。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 以 id 查詢單一物件
-- [ ] Scenario: 查詢不存在的物件
-- [ ] Scenario: 分頁列出物件並依建檔時間由新到舊排序
-- [ ] Scenario Outline: 依條件篩選物件列表
+- [x] Scenario: 以 id 查詢單一物件
+- [x] Scenario: 查詢不存在的物件
+- [x] Scenario: 分頁列出物件並依建檔時間由新到舊排序
+- [x] Scenario Outline: 依條件篩選物件列表
 
 ### Task 7: 物件欄位更新（PATCH）與狀態機轉換（POST /status）
-Status: pending
+Status: done
 Directory: internal/property
 Depends on: Task 5（建檔與 Repository 介面）、Task 6（GetByID，用於「接著 GET 驗證」的斷言路徑）
 Pass threshold: 7.5
@@ -656,12 +658,12 @@ func (s *Service) ChangeStatus(ctx context.Context, id uuid.UUID, target Status)
   `POST /api/v1/properties/{id}/status`（200、400、404、409），以及 `UpdatePropertyRequest` 與
   `ChangeStatusRequest` 兩個 schema。本 task 完成後，文件中的 endpoint 應已涵蓋全部六個公開路由。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 更新物件租金後查詢反映新值
-- [ ] Scenario: 合法的物件狀態轉換被接受
-- [ ] Scenario Outline: 非法的物件狀態轉換被拒絕
+- [x] Scenario: 更新物件租金後查詢反映新值
+- [x] Scenario: 合法的物件狀態轉換被接受
+- [x] Scenario Outline: 非法的物件狀態轉換被拒絕
 
 ### Task 8: OpenAPI 契約測試 —— 強制文件與實作一致
-Status: pending
+Status: done
 Directory: api, test
 Depends on: Task 3（openapi.yaml 骨架與 /healthz、testsupport.StartAPI）、Task 5、Task 6、Task 7（全部六個公開 endpoint 與其文件條目）
 Pass threshold: 8.0
@@ -689,7 +691,7 @@ package test // test/contract_test.go —— 沒有對外匯出的介面，這�
   優先修正 `api/openapi.yaml` 使其如實描述實作；只有當實作明顯違反前面 16 個 scenario 已確立的
   行為時，才回頭改實作 —— 那種情況代表前面的 task 有漏網之魚，要在 Iteration Log 中記下來。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 服務的實際回應與路由集合皆符合 api/openapi.yaml
+- [x] Scenario: 服務的實際回應與路由集合皆符合 api/openapi.yaml
 
 ## Coverage Check
 - Scenario: 以有效設定檔啟動服務 → Task 3
@@ -781,5 +783,155 @@ Expected Goals (from BDD scenarios):
   但 `internal/migrate` 是 Task 4 的產出。本 task 的 `TestMain` 只負責容器生命週期，
   migration 由 Task 4 接上（已在 Executor 與 Evaluator 的 prompt 中明確標示此為正確、非缺漏）。
 - Remaining: 無阻塞項。一個 info：`Service.Check` 的註解寫「依序（平行）」用詞自相矛盾，行為（平行）正確。
+
+### Task 4 — Iter 1 — score 9.3/10 — PASS
+- Changed: `db/20260819120000_create_properties.{up,down}.sql`（完整 DDL、三個 CHECK 約束、
+  唯一索引 `properties_address_key`）、`db/embed.go`（`package db`＋`//go:embed *.sql`）、
+  `internal/migrate`（`parse.go` 的純函式 `parseMigrations` 負責檔名解析／配對／排序；
+  `migrate.go` 的 `Up`／`Down`／`Applied`，以 `schema_migrations` 記錄版本，
+  每個 migration 的 SQL 與版本記錄同在一個 `bun.RunInTx` 交易內）、`cmd/dbmigrate/main.go`
+  （`up`／`down` 子指令＋`--config`）、`test/migrate_test.go`；
+  `test/main_test.go` 的 `TestMain` 補上對共用容器跑 `migrate.Up`（Task 3 預留的接點）。
+- Gates（Coordinator 自 disk 驗證）：`go build ./...`、`go vet ./...` clean，
+  `go test -race -count=1 ./...` 全綠；`./test/...` 共 7 個測試通過，Task 1–3 的 6 個維持綠。
+- Evaluator 手動驗證（皆通過）：
+  (1) 以 verbose testcontainers log 確認測試中存在**兩個不同容器** —— `TestMain` 的長生命週期共用容器
+      與 migrate 測試自起自滅的專屬容器，證實未動到共用容器；
+  (2) 對全新容器實跑 up→up→down→down→up 循環，重複呼叫皆為 no-op，資料表狀態每步正確；
+  (3) 以 `\d properties` 與 `pg_indexes` 檢查**線上 schema**（非僅讀 SQL 文字），逐欄型別／NOT NULL／
+      DEFAULT 與規格一致，`NUMERIC(12,2)`／`NUMERIC(10,2)` 正確，唯一索引確實名為
+      `properties_address_key` 且涵蓋五個門牌欄位 —— Task 5 的重複建檔偵測可安全依賴它；
+  (4) CHECK 約束的列舉值與 Task 5 領域層詞彙一致。
+- Remaining: 無阻塞項。兩個 info：`db/embed.go` 第 3 行的中文說明文字以 `go:embed` 開頭，
+  觸發 staticcheck SA9009 誤報（第 13 行的真正 directive 正確，`go vet` gate 為 clean）；
+  `schema_migrations` 刻意在 `down` 後保留，屬標準行為。
+
+### Task 5 — Iter 1 — score 9.3/10 — PASS
+- Changed: `internal/property`（`property.go` 的 `RentalMode`／`Status`／`Layout` 列舉與 `Valid()`、
+  `Property` 聚合；`create.go` 的 `CreateInput` 與 `Validate`；`service.go` 的 `Repository` 介面
+  （本 task 只宣告 `Create`）與 `Service.Create`）、`internal/property/pgrepo/pgrepo.go`
+  （bun 實作＋編譯期斷言，以 SQLSTATE 23505 辨識重複）、`internal/property/httpapi/`
+  （`Handler`／`NewHandler`／`Mount`、DTO 以 `StringFixed(2)` 輸出金額字串）、
+  `cmd/api/main.go`（接上 pgrepo → Service → Handler）、`api/openapi.yaml`
+  （`POST /api/v1/properties` 的 201／400／409 與 `Property`／`CreatePropertyRequest` schema，
+  金額欄位為 `type: string` 帶 pattern）、`test/property_create_test.go`。
+  go.mod 新增 `shopspring/decimal` 與 `google/uuid`。
+- Gates（Coordinator 自 disk 驗證）：`go build ./...`、`go vet ./...` clean，
+  `go test -race -count=1 ./...` 全綠；`./test/...` 共 12 個測試（含九個驗證 Examples 子測試），
+  Task 1–4 既有的 7 個維持綠。
+- Evaluator 手動驗證（皆通過）：
+  (1) `Validate` 確實蒐集**所有**出錯欄位而非短路 —— 單元測試以七個同時出錯的欄位斷言回傳長度；
+  (2) `"25000.50"` 帶尾隨零輸出，且直接查 DB 確認存入值精確等於 25000.50，端到端無 float；
+  (3) `pgrepo.Create` 為直接 INSERT，無 check-then-insert race，
+      以 `errors.AsType[pgdriver.Error]` 取 SQLSTATE 23505 映射成 `PROPERTY_DUPLICATE`；
+  (4) `api/openapi.yaml` 與 handler 實際回應形狀一致，金額為 string 非 number；
+  (5) 分層邊界成立：`internal/property` 無 bun／net/http import，`pgrepo` 是唯一 bun 匯入者，
+      `httpapi` 是唯一 chi/net/http 匯入者。
+- **執行中斷事件：** 本 task 的 Executor 在接近完成時因 session 額度中斷；使用者將當時的工作以
+  `09f9c5b wip` commit 到 **main**（並已把先前的 `feat/property-service-skeleton` 併入 main）。
+  Coordinator 事後對已 commit 的樹重跑全部 gate 並確認工作實際上已完成，
+  且特別要求 Evaluator 針對「中斷可能留下的半成品」（stub、淺層斷言、TODO、
+  與實作不符的 OpenAPI 條目）加強檢查 —— 未發現任何殘留。後續作業改在 main 上進行。
+- Remaining: 無阻塞項。一個 info：`api/openapi.yaml` 把 `landlord_name`／`landlord_phone` 列為
+  `required`，但 `Validate` 未拒絕空字串。OpenAPI 的 required 僅指「欄位須存在」，空字串仍滿足，
+  故非契約違反，也無 scenario 要求；若日後要求非空，需同時補驗證規則。
+
+### Task 6 — Iter 1 — score 9.5/10 — PASS
+- Changed: `internal/property/query.go`（`ListFilter`＋未匯出的 `normalize()`、`ListResult`、
+  `Service.Get`／`Service.List`）、`internal/property/service.go`（`Repository` 加上 `GetByID`／`List`）、
+  `internal/property/pgrepo/pgrepo.go`（`GetByID` 把 `sql.ErrNoRows` 轉成 `PROPERTY_NOT_FOUND`；
+  `List` 以 bun `ScanAndCount` 一次取得篩選後總數與分頁結果，
+  `ORDER BY created_at DESC, id DESC` 全在 SQL 端完成；新增 `toDomain`）、
+  `internal/property/httpapi/httpapi.go`（兩條 GET 路由、`parseListFilter`、
+  `Items` 以 `make([]T, 0, n)` 建立確保空結果序列化為 `[]`）、
+  `api/openapi.yaml`（兩個 GET endpoint、五個查詢參數宣告、`PropertyList` schema）、
+  `test/property_query_test.go`；另有兩支不碰 Docker 的單元測試檔。
+- Gates（Coordinator 自 disk 驗證）：`go build ./...`、`go vet ./...` clean，
+  `go test -race -count=1 ./...` 全綠；`./test/...` 共 17 個測試，Task 1–5 既有的 12 個維持綠。
+  另以 `go test -race -count=5 -run TestPropertyList ./test/...` 連跑五次確認分頁排序不因時間解析度而 flaky。
+- Evaluator 手動驗證（皆通過）：
+  (1) **`[]` vs `null`：** 對真實服務發請求並直接檢查**原始回應 bytes**（非反序列化後的 Go 值，
+      因為 `null` 與 `[]` 反序列化後難以區分），確認為 `{"items":[],"total":0}`；
+  (2) 排序與分頁確實在 SQL 端完成（`ScanAndCount` + 兩欄 ORDER BY + LIMIT/OFFSET），非取回後在 Go 排序；
+  (3) `total` 確為套用篩選後、分頁前的筆數；
+  (4) 分頁測試斷言的是第 25／16 筆的**身分（id）**而非僅比對數量；
+  (5) `api/openapi.yaml` 如實描述實作，五個查詢參數齊備，金額為 string。
+- 篩選 fixture 中 `OCCUPIED`／`RENOVATING` 兩列以原生 SQL 塞入 —— 這是 Coordinator 明確指示的作法，
+  因為變更狀態的 endpoint 屬 Task 7，本 task 不得提前實作。
+- Remaining: 無阻塞項。一個 info：`parseNonNegativeInt` 命名略有誤導（實際會讓負數通過並交由
+  `normalize` 夾限），行為正確且有文件註解說明。
+
+### Task 7 — Iter 1 — score 9.2/10 — PASS
+- Changed: `internal/property/status.go`（`CanTransition` 與 `map[Status]map[Status]bool` 轉換表，
+  每條規則附繁體中文業務理由）、`internal/property/update.go`（`UpdateInput`＋`Validate`、
+  `Service.Update`、`Service.ChangeStatus`）、`internal/property/service.go`（`Repository` 加 `Update`）、
+  `internal/property/pgrepo/pgrepo.go`（`Update`，0 rows affected → `PROPERTY_NOT_FOUND`）、
+  `internal/property/httpapi/httpapi.go`（PATCH 與 POST /status 兩條路由、
+  `updatePropertyRequest`／`changeStatusRequest` DTO、`parsePathID` helper，重用既有 `propertyResponse`）、
+  `api/openapi.yaml`（兩條新路由與兩個 schema，**至此涵蓋全部六個公開路由**）、
+  `test/property_update_test.go`；另有 `status_test.go`／`update_test.go` 兩支不碰 Docker 的單元測試。
+- Gates（Coordinator 自 disk 驗證）：`go build ./...`、`go vet ./...` clean，
+  `go test -race -count=1 ./...` 全綠；`./test/...` 共 20 個測試，Task 1–6 既有的 17 個維持綠。
+  `TestCanTransition` 的十六格各自為獨立子測試。
+- Evaluator 手動驗證（皆通過）：
+  (1) **十六格逐格稽核**：對照權威轉換表檢查 `status_test.go` 的**期望值**（而非只看測試是否通過 ——
+      測試與實作可能共享同一個錯誤信念），十六格全數相符，對角線四格皆為 false；
+  (2) 實際送出帶 `"status":"OCCUPIED"` 的 PATCH，確認 status 維持 `VACANT` 而同一請求中的
+      `monthly_rent` 確實更新 —— 證明 PATCH 無法繞過狀態機，且非「整個 PATCH 壞掉」；
+  (3) `updated_at` 為全新時間戳（`...904718Z` → `...909805Z`）而非沿用舊值，嚴格晚於 `created_at`；
+  (4) 四列非法轉換皆以合法路徑到達起始狀態，被拒後 GET 確認狀態未變 —— 拒絕發生在寫入之前。
+- Remaining: 無阻塞項。兩個 info：`Service.Update` 內對 `decimal.NewFromString` 的二次檢查是
+  防禦性死碼（已有註解說明）；`pgrepo.Update` 把 0 rows affected 譯為 `PROPERTY_NOT_FOUND`
+  雖然呼叫端已先 `GetByID`，屬合理的防禦性轉譯。
+
+### Task 8 — Iter 1 — score 9.3/10 — PASS
+- Changed: `test/contract_test.go`（四支測試：文件合法性、雙向路由比對、回應 schema 驗證、
+  `/healthz` 503 情境）、`api/openapi.yaml`（唯一改動是 `servers` 由絕對 URL 改為相對 `/`，
+  讓 gorillamux 能對測試中隨機埠號比對路由；其餘內容為前面 task 已寫好且正確）。
+  go.mod 新增 `getkin/kin-openapi` 及其 transitive deps。
+- Gates（Coordinator 自 disk 驗證）：`go build ./...`、`go vet ./...` clean，
+  `go test -race -count=1 ./...` 共跑四次全綠；`./test/...` 24 個測試通過。
+- **Coordinator 親自執行突變測試（本 task 唯一能證明防護力的方式），四項全部如預期失敗：**
+  1. 文件加入不存在的 `GET /api/v1/fake-endpoint` → FAIL「宣告了…但服務並未實際註冊」；
+  2. 刪除文件中真實的 `POST /api/v1/properties/{id}/status` → FAIL「服務註冊了…但未文件化」；
+  3. `Property.monthly_rent` 由 `type: string` 改為 `number` → **schema 層級** FAIL
+     （`got string, want number`），證明真的在驗 body 對 schema 而非只比對狀態碼；
+  4. 移除 `POST /api/v1/properties` 已宣告的 `409` → FAIL（`status is not supported`）。
+  全部還原後 `api/openapi.yaml` 與備份逐位元組相同，全套件重跑為綠。
+- Evaluator 另行確認：六個 operation 的成功／錯誤涵蓋（`GET /api/v1/properties` 僅有 200 是正確的 ——
+  已讀 `parseListFilter`／`parseNonNegativeInt` 確認查詢參數解析**設計上不會產生錯誤**，
+  非法值一律退回預設或不套用篩選，故文件未宣告錯誤回應屬如實描述）；
+  `buildAssembledRouter` 的 mount 清單與 `cmd/api/main.go` 完全一致（否則反向比對會靜默漏路由）；
+  503 測試使用專屬容器、未動共用容器；`internal/health/`、`internal/server/` 無 diff，handler 行為未被改動。
+- **執行中斷事件（第二次）：** 本 task 的第一位 Evaluator 在進行突變測試時因 session 額度中斷，
+  並在 `test/contract_test.go` 留下三行注入的殘骸（含一行語法錯誤的 `routesFromImplementation(t,)`），
+  導致該 package 編譯失敗。Coordinator 診斷後移除**恰好那三行**
+  （同樣的兩行合法版本仍位於 `TestContract_RegisteredRoutesMatchOpenAPIDocument` 內），
+  並確認 `api/openapi.yaml` 未被殘留的突變污染（無假路由、金額欄位皆為 string、六條路由齊備）。
+  隨後由 Coordinator 自行完成突變測試，再交由第二位 fresh-context Evaluator 覆核。
+- Remaining: 無阻塞項。
+
+### hars-verify — 2026-08-20 — 整合閘門（completion run）— PASS
+- **V1 建置與全測試套件：** `go build ./...` exit 0；`go test -race -count=1 ./...` 全綠
+  （13 個有測試的 package，`test` 整合層 14.9s）。此為**未經 task 目錄範圍限縮**的整支專案驗證。
+- **V2 八個 Integration Scenario 逐一對「已組裝系統」實跑**（真實 Postgres／Redis 容器 +
+  `go run ./cmd/dbmigrate up` + `go run ./cmd/api`，以 curl 驅動；非讀碼、非 mock）：
+  1. 以有效設定檔啟動服務 —— 行程持續存活，TCP 18080 接受連線；
+  2. 健康檢查回報健康 —— 200 `{"status":"ok","checks":{"postgres":"ok","redis":"ok"}}`；
+  3. panic 被攔截為 500 且不外洩堆疊 —— 500 `INTERNAL`＋非空 request_id，
+     body 不含 `goroutine`（堆疊只出現在 log），且 log 中有同 request_id 的 ERROR 紀錄；
+  4. 建立一筆包租物件 —— 201、合法 UUID、`VACANT`、`"25000.50"`、`MASTER_LEASE`，
+     且直接查 DB 確認 `monthly_rent = 25000.50` 為 true（精確相等）；
+  5. 更新租金後查詢反映新值 —— PATCH 200 `"27000.00"`，GET 一致，
+     `updated_at`(10:30:31) 嚴格晚於 `created_at`(10:30:19)；
+  6. 合法狀態轉換被接受 —— VACANT→RENOVATING 200，GET 確認已變更；
+  7. 非法狀態轉換被拒絕（四列 Examples 全數）—— DELISTED→OCCUPIED、DELISTED→RENOVATING、
+     OCCUPIED→DELISTED、VACANT→VACANT 皆為 409 `PROPERTY_INVALID_STATUS_TRANSITION`，
+     且事後 GET 狀態均未變；期間另驗證三條合法轉換（RENOVATING→DELISTED、DELISTED→VACANT、
+     VACANT→OCCUPIED）皆為 200；
+  8. 實際回應與路由集合皆符合 `api/openapi.yaml` —— 契約四測全綠，
+     並對獨立執行中的服務交叉確認六條文件化路由皆已註冊、未文件化路徑回 404。
+- **結論：** integration=8/8，無 unverified 項目，無需 reopen 任何 task。
+- 驗證用容器與行程已全數清除。
 
 ## Amendments

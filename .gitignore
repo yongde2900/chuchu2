@@ -1,0 +1,8 @@
+# Claude Code 個人設定（每台機器不同，不進版控）
+.claude/settings.local.json
+
+# Go build 產物
+/bin/
+*.exe
+*.test
+*.out

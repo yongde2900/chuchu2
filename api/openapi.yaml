@@ -1,0 +1,100 @@
+openapi: 3.1.0
+info:
+  title: chuchu2 包租代管服務 API
+  description: 包租代管服務的對外 HTTP API。
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+    description: 本機開發環境
+
+paths:
+  /healthz:
+    get:
+      summary: 健康檢查
+      description: |
+        回報服務本身與其相依服務（Postgres、Redis）目前是否健康。
+        全部相依服務都健康時回 200，任一相依服務不健康時回 503。
+      operationId: getHealthz
+      tags:
+        - health
+      responses:
+        "200":
+          description: 服務與所有相依服務皆健康。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthReport"
+              example:
+                status: ok
+                checks:
+                  postgres: ok
+                  redis: ok
+        "503":
+          description: 至少一個相依服務不健康。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthReport"
+              example:
+                status: degraded
+                checks:
+                  postgres: down
+                  redis: ok
+
+components:
+  schemas:
+    ErrorBody:
+      type: object
+      description: 所有錯誤回應共用的統一形狀。
+      required:
+        - code
+        - message
+        - request_id
+      properties:
+        code:
+          type: string
+          description: 穩定、機器可讀的錯誤代碼。
+        message:
+          type: string
+          description: 給人看的錯誤訊息。
+        request_id:
+          type: string
+          description: 這個請求的 request id，方便對照 server 端日誌。
+        details:
+          type: array
+          description: 驗證失敗時，逐欄位的詳細原因（可省略）。
+          items:
+            $ref: "#/components/schemas/FieldError"
+
+    FieldError:
+      type: object
+      description: 單一欄位的驗證失敗原因。
+      required:
+        - field
+        - reason
+      properties:
+        field:
+          type: string
+          description: 未通過驗證的欄位名稱。
+        reason:
+          type: string
+          description: 該欄位未通過驗證的原因。
+
+    HealthReport:
+      type: object
+      description: 一次健康檢查的彙整結果。
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          description: 整體健康狀態。
+          enum:
+            - ok
+            - degraded
+        checks:
+          type: object
+          description: 每個相依服務的健康狀態，key 為服務名稱（例如 postgres、redis）。
+          additionalProperties:
+            type: string

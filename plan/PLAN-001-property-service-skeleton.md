@@ -1,6 +1,6 @@
 # PLAN-001 — 包租代管系統：服務骨架 + 物件（房源）建檔與查詢垂直切片
 Created: 2026-08-19
-Status: approved
+Status: in-progress
 Approved: 2026-08-19
 Working Directory: .
 BDD Spec: ./bdd/BDD-001-property-service-skeleton.feature
@@ -212,7 +212,7 @@ bring-up 容易需要一兩輪試誤（等待策略、DSN 組裝、容器停止�
 ## Sub-Tasks
 
 ### Task 1: 專案骨架、設定載入與結構化日誌
-Status: pending
+Status: done
 Directory: .
 Depends on: none
 Pass threshold: 8.0
@@ -268,10 +268,10 @@ func New(level string, w io.Writer) *slog.Logger
 - 提供 `internal/testsupport` 中的 `func RepoRoot(t *testing.T) string`，讓測試能以 repo 根目錄為
   工作目錄執行 `go run ./cmd/api`。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 設定檔缺少必要欄位時拒絕啟動
+- [x] Scenario: 設定檔缺少必要欄位時拒絕啟動
 
 ### Task 2: 統一錯誤型別、request id、panic 攔截與 chi router 組裝
-Status: pending
+Status: done
 Directory: internal/apperr, internal/httpx, internal/server
 Depends on: Task 1（config.Config、logging.New、目錄骨架、cmd/api 進入點）
 Pass threshold: 8.0
@@ -349,10 +349,10 @@ func Run(ctx context.Context, addr string, h http.Handler, shutdownTimeout time.
 - `GET /debug/panic` 只在 `Options.Debug` 為 true 時掛載，`config/test.yaml` 已設 `server.debug: true`。
 - 本 task 讓 `cmd/api` 真正起 HTTP server 並在 SIGINT/SIGTERM 時優雅關閉。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 未預期的 panic 被攔截為 500 且不外洩堆疊
+- [x] Scenario: 未預期的 panic 被攔截為 500 且不外洩堆疊
 
 ### Task 3: Postgres／Redis 連線、健康檢查端點與 testcontainers 測試基礎設施
-Status: pending
+Status: done
 Directory: internal/platform, internal/health, internal/testsupport
 Depends on: Task 1（config.Config、logging）、Task 2（server.NewRouter/Mount/Run、httpx.WriteJSON）
 Provides (public interface):
@@ -410,12 +410,12 @@ func StartAPI(t *testing.T, configName string, env map[string]string) (baseURL s
 - 由於冷機器第一次會拉 image，測試需設定足夠的等待時間；`go test -race ./...` 必須在只有 Docker
   執行的機器上全綠，**不得假設有原生 Postgres 或 Redis**。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 以有效設定檔啟動服務
-- [ ] Scenario: 相依服務皆可連線時健康檢查回報健康
-- [ ] Scenario Outline: 任一相依服務斷線時健康檢查回報不健康
+- [x] Scenario: 以有效設定檔啟動服務
+- [x] Scenario: 相依服務皆可連線時健康檢查回報健康
+- [x] Scenario Outline: 任一相依服務斷線時健康檢查回報不健康
 
 ### Task 4: properties 資料表 migration 與 cmd/dbmigrate
-Status: pending
+Status: in-progress
 Directory: db, internal/migrate, cmd/dbmigrate
 Depends on: Task 1（config.Load、logging）、Task 3（postgres.Open、testsupport.StartPostgres）
 Pass threshold: 8.0
@@ -721,5 +721,65 @@ Expected Goals (from BDD scenarios):
 - Scenario: 服務的實際回應與路由集合皆符合 api/openapi.yaml
 
 ## Iteration Log
+
+### Task 1 — Iter 1 — score 9.7/10 — PASS
+- Changed: 建立 `go.mod`（module `github.com/yongde2900/chuchu2`, go 1.26，僅 viper 相依）、
+  `internal/config`（`Config`/`ServerConfig`/`PostgresConfig`/`RedisConfig`/`LogConfig`、`Load`、
+  `MissingKeyError`）、`internal/platform/logging`（`New`）、`internal/testsupport/reporoot.go`
+  （`RepoRoot`）、`cmd/api/main.go`（最小版本：`--config` flag → `config.Load` → 失敗寫 stderr 並
+  exit 1）、fixture `config/test.yaml` 與 `config/broken.yaml`、`test/startup_test.go`，
+  以及 12 個 `.gitkeep` 目錄佔位。
+- Gates（Coordinator 自 disk 驗證）：`go build ./...` clean、`go vet ./...` clean、
+  `go test -race -count=1 ./...` 全綠（8 個測試／4 個 package）。
+- 環境變數覆寫機制經 Evaluator 手動驗證確實生效，含「key 只存在於環境變數、不存在於 yaml」
+  這個 Task 3 會依賴的關鍵情境 —— 作法是對每個已知 key 明確 `BindEnv`，而非只靠 `AutomaticEnv`。
+- Remaining: 無阻塞項。三個 info 級註記：`internal/platform/logging/logging_test.go` 有 gofmt
+  對齊瑕疵；`config.Load` 的 config 路徑相對於 cwd（測試與 Task 3 皆以 repo 根為工作目錄，可接受）；
+  Task 1 的檔案目前在 git 中仍為 untracked（本 skill 不自行 commit）。
+
+### Task 2 — Iter 1 — score 9.5/10 — PASS
+- Changed: `internal/apperr`（`Code` 五個常數、`FieldError`、`Error`＋`Unwrap`、`New`/`Wrap`/`Validation`、
+  `HTTPStatus` 單一映射點）、`internal/httpx`（`ErrorBody`、`RequestID`＋`RequestIDFrom`（未匯出 context key）、
+  `Recoverer`、`WriteJSON`、`WriteError`、泛型 `DecodeJSON[T]`）、`internal/server`（`Mount`、`Options`、
+  `NewRouter`、`Run`＋graceful shutdown）、`cmd/api/main.go`（真正起 HTTP server，SIGINT/SIGTERM 優雅關閉）、
+  `test/panic_test.go`；go.mod 新增 `github.com/go-chi/chi/v5 v5.3.1`。
+- Gates（Coordinator 自 disk 驗證）：`go build ./...`、`go vet ./...` clean，
+  `go test -race -count=1 ./...` 全綠（7 個 package、30+ 個測試）。
+- Evaluator 另以手動方式驗證：實跑 `go run ./cmd/api --config=test` 並 curl `/debug/panic`，
+  確認 500／`code=INTERNAL`／非空 request_id／body 不含 `goroutine`，且堆疊只出現在 log 的 `stack` 欄位；
+  middleware 順序 RequestID → access log → Recoverer 在 handler panic 時仍能產出 request_id。
+  另確認 `internal/server` 的 intra-repo import 只有 `internal/httpx`，未 import 任何 feature 套件。
+- **Coordinator 修正：** Executor 留下的 `go.mod` 把 chi 標成 `// indirect`（實為直接相依），
+  已執行 `go mod tidy` 修正並重跑兩道 gate 確認仍為綠。
+- **Coordinator 對計畫張力的處置（未改動計畫）：** 測試佈局約定所有 BDD 驗收證據放 `test/` 並透過
+  `testsupport.StartAPI` 驅動，但 `StartAPI` 是 Task 3 的產出、相依順序上晚於 Task 2。本 task 的 panic
+  scenario 因此改以**同行程** `httptest.NewServer` 套用真實 router 與完整 middleware chain 驅動 ——
+  五條 Then 全部照驗，且 log／request_id 關聯在同行程下反而比對子行程 stderr 更容易斷言，亦不需 Docker。
+- **契約微調（事前授權，非破壞性）：** `NewRouter` 的參數列已凍結，但 middleware chain 需要 logger，
+  故 logger 以新增欄位的方式放進 `Options`（`Logger *slog.Logger`，nil 時退回 `slog.Default()`）。
+  新增欄位不影響已規劃的呼叫端，改參數列則會。
+- Remaining: 無阻塞項。
+
+### Task 3 — Iter 1 — score 9.2/10 — PASS
+- Changed: `internal/platform/postgres`（`Open`／`Ping`，bun + pgdriver + pgdialect）、
+  `internal/platform/redisclient`（`Open`，go-redis/v9）、`internal/health`（`Checker` 介面、
+  `Report`、`Service`＋平行探測、`NewPostgresChecker`／`NewRedisChecker`（`Name()` 為 `postgres`／`redis`）、
+  `Mount` 掛 `GET /healthz`）、`internal/testsupport`（`StartPostgres`／`StartRedis`／`StartAPI`）、
+  `cmd/api/main.go`（完整組裝；相依連不上時**記錄警告而非退出**）、`api/openapi.yaml`（3.1.0 骨架，
+  含 `ErrorBody`／`FieldError`／`HealthReport` 與 `/healthz` 的 200／503）、
+  `test/main_test.go`（共用容器 `TestMain`）、`test/health_test.go`、`test/startup_test.go`（新增啟動情境）。
+  go.mod 新增 bun、go-redis/v9、testcontainers-go（含 modules/postgres、modules/redis）。
+- Gates（Coordinator 自 disk 驗證）：`go build ./...`、`go vet ./...` clean，
+  `go test -race -count=1 ./...` 全綠。整合層 `./test/...` 暖快取約 10s，冷機器含拉 image 約 36s。
+- Evaluator 手動驗證三個「綠測試也可能藏住」的關鍵點，全部通過：
+  (1) 斷線情境確實各起**專屬**用完即丟容器，未動到 `TestMain` 共用容器；
+  (2) 每個斷線測試都**先斷言 200** 再停容器，因此能區分「探針偵測到斷線」與「從頭就沒連上」；
+  (3) 實際以無法連線的 DSN 啟動 `cmd/api`，確認行程不退出且 `/healthz` 回 503 degraded。
+  另確認 `internal/server` 未 import `internal/health`（唯一符合處是說明邊界的註解），
+  `internal/health` 單元測試只用假 Checker、不含 Docker 相依。
+- **Coordinator 對計畫張力的處置（未改動計畫）：** 計畫寫 Task 3 的 `TestMain` 要跑 `migrate.Up`，
+  但 `internal/migrate` 是 Task 4 的產出。本 task 的 `TestMain` 只負責容器生命週期，
+  migration 由 Task 4 接上（已在 Executor 與 Evaluator 的 prompt 中明確標示此為正確、非缺漏）。
+- Remaining: 無阻塞項。一個 info：`Service.Check` 的註解寫「依序（平行）」用詞自相矛盾，行為（平行）正確。
 
 ## Amendments

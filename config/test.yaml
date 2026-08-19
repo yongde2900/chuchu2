@@ -1,0 +1,16 @@
+server:
+  port: 8080
+  debug: true
+  shutdown_timeout: 5s
+
+postgres:
+  dsn: "postgres://postgres:postgres@localhost:5432/chuchu?sslmode=disable"
+  max_open_conns: 10
+
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+log:
+  level: "info"

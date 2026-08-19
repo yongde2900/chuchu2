@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go test *)",
+      "Bash(go list *)",
+      "Bash(go env *)",
+      "Bash(go doc *)",
+      "Bash(go version)",
+      "Bash(gofmt -l *)",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot"
+    ]
+  }
+}

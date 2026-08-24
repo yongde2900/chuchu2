@@ -1,6 +1,6 @@
 # PLAN-002 — 架構調整：spec-first handler、統一錯誤中介層、bun/migrate
 Created: 2026-08-24
-Status: approved
+Status: in-progress
 Approved: 2026-08-24
 Working Directory: .
 BDD Spec: ./bdd/BDD-002-spec-first-architecture.feature
@@ -466,7 +466,7 @@ Task 1 設 **8.0** —— 整個 Rule 2 都站在 sentinel 的正確性上，一
 ## Sub-Tasks
 
 ### Task 1: apperr sentinel 化 —— 共用錯誤值與不可變的 With* 衍生
-Status: pending
+Status: done
 Directory: internal/apperr
 Depends on: none
 Pass threshold: 8.0
@@ -503,7 +503,7 @@ func (e *Error) WithDetails(details ...FieldError) *Error
 func (e *Error) Is(target error) bool
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: apperr 的共用 sentinel 不會被 WithError 汙染
+- [x] Scenario: apperr 的共用 sentinel 不會被 WithError 汙染
 
 實作要求：
 - 這個 task 只動 `internal/apperr`，不動任何呼叫端；交付時 `go build ./...`、`go vet ./...`
@@ -518,7 +518,7 @@ Expected Goals (from BDD scenarios):
 ---
 
 ### Task 2: bun/migrate 機制原子置換 —— 刪除 internal/migrate、重寫 cmd/dbmigrate
-Status: pending
+Status: done
 Directory: db, internal/migrate（刪除）, cmd/dbmigrate, test
 Depends on: none
 Pass threshold: 8.5
@@ -555,12 +555,12 @@ func NewMigrator(bunDB *bun.DB) (*migrate.Migrator, error)
 // main() 只有 os.Exit(run(os.Args[1:])) 一行；run(args []string) int 回傳 exit code。
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: init 建立 bun 的 migration 記錄資料表
-- [ ] Scenario: migrate 套用所有尚未套用的 migration
-- [ ] Scenario: 重複執行 migrate 不會出錯也不會重複套用
-- [ ] Scenario: status 同時列出已套用與待套用的 migration
-- [ ] Scenario Outline: 錯誤的用法會以非零 exit code 拒絕並說明原因
-- [ ] Scenario: 換掉 migration 機制之後 properties 資料表的結構完全相同
+- [x] Scenario: init 建立 bun 的 migration 記錄資料表
+- [x] Scenario: migrate 套用所有尚未套用的 migration
+- [x] Scenario: 重複執行 migrate 不會出錯也不會重複套用
+- [x] Scenario: status 同時列出已套用與待套用的 migration
+- [x] Scenario Outline: 錯誤的用法會以非零 exit code 拒絕並說明原因
+- [x] Scenario: 換掉 migration 機制之後 properties 資料表的結構完全相同
 
 實作要求：
 - **這是一次原子置換，必須在同一個 task 內全部做完**，交付時 `go build ./...`、`go vet ./...`、
@@ -603,7 +603,7 @@ Expected Goals (from BDD scenarios):
 ---
 
 ### Task 3: migration 進階行為 —— rollback group 語意、交易性、create_sql、unlock
-Status: pending
+Status: in-progress
 Directory: test
 Depends on: Task 2（`db.NewMigrator`、六個子指令、`.tx.` 檔名慣例、`test/migrate_test.go` 的既有輔助函式）
 Pass threshold: 8.5
@@ -945,3 +945,43 @@ Expected Goals (from BDD scenarios):
 - Scenario: migration 中途失敗時整個 migration 回滾，不留下半套 schema
 
 ## Iteration Log
+
+### Task 1 — Iter 1 — score 8.3/10 — PASS（但留有 [error] 等級發現）
+- Changed: `internal/apperr/apperr.go`（五個 sentinel、`clone()`、`WithError`/`WithMessage`/`WithDetails`、`Is`）、
+  `internal/apperr/apperr_test.go`（4 個新測試）。
+- 驗證：`go vet ./internal/apperr/...` 乾淨；`go test -race -count=1 ./internal/apperr/...` 13 個測試全過；
+  `go build ./...` 與 `go test -race -count=1 ./internal/... ./db/...` 全綠，既有呼叫端未受影響。
+- Remaining: Evaluator 實證 `TestSentinel_WithDetails_DoesNotShareBackingArray` 是偽陽性——
+  把 `clone()` 的 Details 深拷貝分支整個移除後測試仍然全綠。原因：(1) `WithDetails` 無條件以
+  `append(nil, details...)` 覆寫 `c.Details`，`clone()` 的拷貝邏輯在該路徑永遠不被執行；
+  (2) 變參陣列 `cap == len == 1`，測試中的 `append` 必定重新配置，原理上無法觀察 aliasing。
+  實作正確但該防線未受測；Task 5 會大量使用 `WithDetails`，故以 Iter 2 補強測試。
+
+### Task 1 — Iter 2 — PASS — Task 1 完成
+- Changed: 僅 `internal/apperr/apperr_test.go`（新增 `TestSentinel_Clone_DoesNotAliasDetailsBackingArray`
+  與 `TestSentinel_Clone_DerivedFromDerived_DoesNotAliasDetails`）。`apperr.go` 最終狀態與 Iter 1
+  逐位元組相同 —— 本輪只補測試，不動已經正確的實作。
+- 關鍵作法：基底的 `Details` 刻意保留剩餘容量（`len 1, cap 8`），並改用 `WithMessage`（會經過
+  `clone()` 但不重建 Details）作為衍生路徑 —— `WithDetails` 會把 Details 整個重建，正好遮住 bug。
+- **Coordinator 獨立驗證（不採信 Executor 自述）：** 親手把 `clone()` 退化為 `c := *e; return &c`，
+  兩個新測試如預期轉紅（其餘測試全數仍過，證明抓到的正是這條防線）；還原後與備份逐位元組相同、
+  測試轉綠。`go build ./...`、`go test -race -count=1 ./internal/... ./db/...` 全綠。
+- Iter 1 的 [error] 發現已關閉。
+
+### Task 2 — Iter 1 — score 9.1/10 — PASS — Task 2 完成
+- Changed: `db/*.sql` 兩個檔以 `git mv` 改名為 `.tx.up.sql` / `.tx.down.sql`（內容零變動，已由
+  `git diff -M --stat -- db/` 證實）、新增 `db/migrate.go`（`Migrations()` / `NewMigrator()`）、
+  更新 `db/embed.go` 註解、**刪除整個 `internal/migrate/`**（三個檔）、重寫 `cmd/dbmigrate/main.go`
+  為六個子指令、`test/main_test.go` 僅改 `migrateSharedPostgres` 內部、重寫 `test/migrate_test.go`
+  並提供 `runDBMigrate` 供 Task 3／4 沿用。`go.mod` / `go.sum` 未變動（bun/migrate 已在 vendor 中）。
+- 驗證：`go build ./...`、`go vet ./...`、`go test -race -count=1 ./...` 全綠（`test` 套件 22.4s）。
+- **Coordinator 獨立驗證：** `git status` 顯示兩個 SQL 為 `R`（純改名）且無內容 diff；
+  `internal/migrate` 三檔為 `D`；`WithMarkAppliedOnSuccess(true)` 與 `WithMigrationsDirectory("db")`
+  分別掛在正確的建構子上；`create_sql` 走 `CreateTxSQLMigrations`。
+- Evaluator 特別查證了「`up`／`down` 短子字串斷言是否可能因錯誤理由通過」：不會 ——
+  該斷言只可能由程式自己以 `%q` 回吐的「未知的子指令」訊息滿足，固定的子指令清單
+  （init／migrate／rollback／status／unlock／create_sql）不含 `up` 或 `down` 子字串。
+- Coordinator 後續修掉兩個小瑕疵（改完重跑 build／vet／`./test/...` 全綠）：
+  1. `test/migrate_test.go` 的 `errors.As` 改為專案慣例的 `errors.AsType[*exec.ExitError]`；
+  2. `db/embed.go` 一行以 `go:embed` 開頭的中文註解被 staticcheck 判為無效編譯指令（SA9009），
+     改寫首字避免誤導；真正的 `//go:embed *.sql` 未受影響。

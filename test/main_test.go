@@ -20,13 +20,13 @@ import (
 	"testing"
 	"time"
 
+	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
+	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
-	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
-	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 
-	"github.com/yongde2900/chuchu2/internal/migrate"
+	"github.com/yongde2900/chuchu2/db"
 )
 
 // sharedPostgresDSN、sharedRedisAddr 存放 TestMain 起的共用容器的連線資訊，
@@ -108,9 +108,13 @@ func runTestMain(m *testing.M) int {
 	return m.Run()
 }
 
-// migrateSharedPostgres 對 dsn 開一個獨立的 *bun.DB 連線並套用一次
-// migrate.Up，讓共用 Postgres 容器在所有測試開始前就有 properties 資料表。
-// 這個連線只在套用 migration 期間短暫使用，用完即關閉，不會被存進共用狀態。
+// migrateSharedPostgres 對 dsn 開一個獨立的 *bun.DB 連線，透過 db.NewMigrator
+// 先 Init（建立 bun_migrations／bun_migration_locks）再 Migrate，讓共用
+// Postgres 容器在所有測試開始前就有 properties 資料表。這個連線只在套用
+// migration 期間短暫使用，用完即關閉，不會被存進共用狀態。
+//
+// 必須先 Init 再 Migrate：bun 不會像手寫機制那樣 lazily 建立記錄表，
+// 沒有先 Init，Migrate 會因查不到 bun_migrations 而失敗。
 func migrateSharedPostgres(ctx context.Context, dsn string) error {
 	sqldb := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
 	defer sqldb.Close()
@@ -118,5 +122,18 @@ func migrateSharedPostgres(ctx context.Context, dsn string) error {
 	bunDB := bun.NewDB(sqldb, pgdialect.New())
 	defer bunDB.Close()
 
-	return migrate.Up(ctx, bunDB)
+	migrator, err := db.NewMigrator(bunDB)
+	if err != nil {
+		return err
+	}
+
+	if err := migrator.Init(ctx); err != nil {
+		return err
+	}
+
+	if _, err := migrator.Migrate(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }

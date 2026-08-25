@@ -1,10 +1,6 @@
-// 本檔對應 BDD scenario：
-// 「以 id 查詢單一物件」、「查詢不存在的物件」（@error）、
-// 「分頁列出物件並依建檔時間由新到舊排序」、
-// 「依條件篩選物件列表」（Scenario Outline，五個 Examples）。
+// 物件查詢：單筆查詢、分頁排序、條件篩選。
 //
-// Background 是「properties 資料表為空」：每個測試前都會對 TestMain 起的共用
-// Postgres 容器 TRUNCATE properties，取得乾淨狀態，不重建容器。
+// 每個測試前對共用容器 TRUNCATE properties 取得乾淨狀態，不重建容器。
 package test
 
 import (
@@ -19,12 +15,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/uptrace/bun"
-
-	"github.com/yongde2900/chuchu2/internal/testsupport"
 )
 
-// propertyDetailBody 對應 GET /api/v1/properties/{id} 成功回應的 JSON 形狀
-// （只列出本測試斷言用得到的欄位）。
+// 只列出斷言用得到的欄位。
 type propertyDetailBody struct {
 	ID          string `json:"id"`
 	MonthlyRent string `json:"monthly_rent"`
@@ -33,29 +26,22 @@ type propertyDetailBody struct {
 	UpdatedAt   string `json:"updated_at"`
 }
 
-// propertyListItemBody 是列表回應中單一項目的形狀（只列出斷言用得到的欄位）。
 type propertyListItemBody struct {
 	ID string `json:"id"`
 }
 
-// propertyListBody 對應 GET /api/v1/properties 成功回應的 JSON 形狀。
-// Items 刻意不加任何額外處理——json.Unmarshal 對 JSON null 與 JSON []
-// 的解碼結果不同（前者是 nil slice、後者是非 nil 空 slice），
-// 這正是本檔用來驗證「空結果回 [] 而非 null」的關鍵。
+// Items 刻意不加任何處理：json.Unmarshal 對 null 與 [] 的結果不同
+// （nil slice vs 非 nil 空 slice），這是驗證「空結果回 [] 而非 null」的關鍵。
 type propertyListBody struct {
 	Items []propertyListItemBody `json:"items"`
 	Total int                    `json:"total"`
 }
 
-// getProperty 對 baseURL + /api/v1/properties/{id} 送出一次 GET 請求，
-// 回傳狀態碼與原始回應 body。
 func getProperty(t *testing.T, baseURL, id string, output func() string) (int, []byte) {
 	t.Helper()
 	return getJSON(t, baseURL+"/api/v1/properties/"+id, output)
 }
 
-// listProperties 對 baseURL + /api/v1/properties?query 送出一次 GET 請求，
-// 回傳狀態碼與原始回應 body。
 func listProperties(t *testing.T, baseURL, query string, output func() string) (int, []byte) {
 	t.Helper()
 
@@ -66,7 +52,6 @@ func listProperties(t *testing.T, baseURL, query string, output func() string) (
 	return getJSON(t, u, output)
 }
 
-// getJSON 對 u 送出一次 GET 請求，回傳狀態碼與原始回應 body。
 func getJSON(t *testing.T, u string, output func() string) (int, []byte) {
 	t.Helper()
 
@@ -84,14 +69,10 @@ func getJSON(t *testing.T, u string, output func() string) (int, []byte) {
 	return resp.StatusCode, respBody
 }
 
-// TestPropertyGetByID_Success_Returns200 對應 BDD scenario「以 id 查詢單一物件」。
 func TestPropertyGetByID_Success_Returns200(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	reqBody := validPropertyRequestBody()
 	reqBody["rental_mode"] = "MANAGED"
@@ -134,14 +115,10 @@ func TestPropertyGetByID_Success_Returns200(t *testing.T) {
 	}
 }
 
-// TestPropertyGetByID_NotFound_Returns404 對應 BDD scenario「查詢不存在的物件」（@error）。
 func TestPropertyGetByID_NotFound_Returns404(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	status, raw := getProperty(t, baseURL, "00000000-0000-0000-0000-000000000000", output)
 	if status != http.StatusNotFound {
@@ -157,16 +134,11 @@ func TestPropertyGetByID_NotFound_Returns404(t *testing.T) {
 	}
 }
 
-// TestPropertyGetByID_InvalidUUID_Returns400 驗證路徑上的 {id} 不是合法 UUID
-// 時回 400 VALIDATION_FAILED（規格明列的邊界，雖未直接寫在 Gherkin scenario
-// 的 Then 子句裡，但屬於本 task 的契約要求）。
+// {id} 不是合法 UUID 的邊界：規格有要求，但沒有寫成獨立的 Gherkin scenario。
 func TestPropertyGetByID_InvalidUUID_Returns400(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	status, raw := getProperty(t, baseURL, "not-a-valid-uuid", output)
 	if status != http.StatusBadRequest {
@@ -182,15 +154,10 @@ func TestPropertyGetByID_InvalidUUID_Returns400(t *testing.T) {
 	}
 }
 
-// createPropertiesSequentially 依序（非並行）建立 n 筆物件，每筆的
-// room_no 各不相同以滿足 (city, district, street_address, floor, room_no)
-// 唯一鍵，並回傳依「建立順序」排列的 id 陣列（ids[0] 是第 1 筆建立的）。
+// 回傳依建立順序排列的 id（ids[0] 是第 1 筆）。room_no 各不相同以滿足唯一鍵。
 //
-// 依序（非並行）送出真正的 HTTP 請求，讓伺服器端 time.Now() 產生的
-// created_at 隨呼叫順序嚴格遞增——Go 的 monotonic clock 保證同一機器上兩次
-// time.Now() 呼叫不遞減，而兩次 HTTP round trip 之間的間隔遠大於時鐘解析度，
-// 實務上足以保證嚴格遞增；即使真的同一時間戳，repository 端以 id 作為次要
-// 排序鍵這件事本身不影響本測試的正確性判準，因為這裡測的就是那個排序契約。
+// 必須依序、不可並行：這樣伺服器端的 created_at 才會隨呼叫順序嚴格遞增，
+// 排序斷言才有意義。
 func createPropertiesSequentially(t *testing.T, baseURL string, output func() string, n int) []string {
 	t.Helper()
 
@@ -214,15 +181,10 @@ func createPropertiesSequentially(t *testing.T, baseURL string, output func() st
 	return ids
 }
 
-// TestPropertyList_Pagination_SortedByCreatedAtDescending 對應 BDD scenario
-// 「分頁列出物件並依建檔時間由新到舊排序」。
 func TestPropertyList_Pagination_SortedByCreatedAtDescending(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	ids := createPropertiesSequentially(t, baseURL, output, 25)
 
@@ -264,7 +226,6 @@ func TestPropertyList_Pagination_SortedByCreatedAtDescending(t *testing.T) {
 	}
 }
 
-// filterFixtureProperty 是「依條件篩選物件列表」Scenario Outline 中的一筆 fixture。
 type filterFixtureProperty struct {
 	label      string
 	city       string
@@ -272,12 +233,9 @@ type filterFixtureProperty struct {
 	rentalMode string
 }
 
-// insertFilterFixture 直接以 SQL 寫入 4 筆 fixture 物件（而不是透過
-// POST /api/v1/properties + 一個尚未存在的狀態轉換 endpoint），因為其中兩筆
-// 的 status 不是新建物件預設的 VACANT（乙為 OCCUPIED、丁為 RENOVATING），
-// 而「變更物件狀態」是 Task 7 的範圍，本 task 不得為了這個 fixture 去實作
-// POST /{id}/status。回傳 label 到 id 的對照表，供後續驗證「items 恰好包含
-// 哪些編號」使用。
+// 直接以 SQL 寫入 fixture 而不走 API：其中兩筆的 status 不是新建預設的 VACANT，
+// 用 API 建立還得多跑一次狀態轉換，把查詢測試綁到不相干的 endpoint 上。
+// 回傳 label → id 的對照表。
 func insertFilterFixture(t *testing.T, fixtures []filterFixtureProperty) map[string]string {
 	t.Helper()
 
@@ -299,8 +257,7 @@ func insertFilterFixture(t *testing.T, fixtures []filterFixtureProperty) map[str
 	return ids
 }
 
-// insertFilterFixtureRow 插入單一筆 fixture 物件，欄位需與
-// db/20260819120000_create_properties.up.sql 保持一致。
+// 欄位需與 db/ 底下的 create_properties migration 保持一致。
 func insertFilterFixtureRow(
 	t *testing.T,
 	db *bun.DB,
@@ -334,15 +291,11 @@ func insertFilterFixtureRow(
 	}
 }
 
-// TestPropertyList_Filter 對應 BDD Scenario Outline「依條件篩選物件列表」，
-// 涵蓋全部五個 Examples。
+// 涵蓋 Scenario Outline 的全部五個 Examples。
 func TestPropertyList_Filter(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	fixtures := []filterFixtureProperty{
 		{label: "甲", city: "臺北市", status: "VACANT", rentalMode: "MASTER_LEASE"},

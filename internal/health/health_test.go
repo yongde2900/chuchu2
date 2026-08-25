@@ -1,17 +1,14 @@
 // 本檔是 health 套件的單元測試：只測 Service.Check 產生的 Report 內容
-// 與 Mount 依 Report 選擇的狀態碼，全部用假的 in-memory Checker 實作，
-// 不碰 Docker、不連任何外部服務。
+// 與 API.GetHealthz 依 Report 選擇的 response object，全部用假的 in-memory
+// Checker 實作，不碰 Docker、不連任何外部服務。
 package health
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/yongde2900/chuchu2/api"
 )
 
 // fakeChecker 是測試用的假 Checker：依建構時給定的 err 決定 Check 的結果。
@@ -94,65 +91,49 @@ func TestService_Check_NoCheckers(t *testing.T) {
 	}
 }
 
-func TestMount_AllOK_Returns200(t *testing.T) {
+// TestAPI_GetHealthz_AllOK_Returns200 驗證全部相依服務健康時，
+// API.GetHealthz 回傳 api.GetHealthz200JSONResponse（而不是 503 那個型別）。
+func TestAPI_GetHealthz_AllOK_Returns200(t *testing.T) {
 	svc := NewService(&fakeChecker{name: "postgres"}, &fakeChecker{name: "redis"})
+	a := NewAPI(svc)
 
-	r := chi.NewRouter()
-	Mount(svc)(r)
-
-	srv := httptest.NewServer(r)
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/healthz")
+	resp, err := a.GetHealthz(context.Background(), api.GetHealthzRequestObject{})
 	if err != nil {
-		t.Fatalf("GET /healthz 失敗: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("狀態碼 = %d, want %d", resp.StatusCode, http.StatusOK)
+		t.Fatalf("GetHealthz 回傳 error: %v", err)
 	}
 
-	var body Report
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatalf("解析回應 JSON 失敗: %v", err)
+	body, ok := resp.(api.GetHealthz200JSONResponse)
+	if !ok {
+		t.Fatalf("回應型別 = %T, want api.GetHealthz200JSONResponse", resp)
 	}
-	if body.Status != "ok" {
-		t.Fatalf("body.Status = %q, want %q", body.Status, "ok")
+	if body.Status != api.Ok {
+		t.Fatalf("body.Status = %q, want %q", body.Status, api.Ok)
 	}
 	if body.Checks["postgres"] != "ok" || body.Checks["redis"] != "ok" {
 		t.Fatalf("body.Checks = %v, want all ok", body.Checks)
 	}
 }
 
-func TestMount_OneDown_Returns503(t *testing.T) {
+// TestAPI_GetHealthz_OneDown_Returns503 驗證任一相依服務不健康時，
+// API.GetHealthz 回傳 api.GetHealthz503JSONResponse。
+func TestAPI_GetHealthz_OneDown_Returns503(t *testing.T) {
 	svc := NewService(
 		&fakeChecker{name: "postgres", err: errors.New("down")},
 		&fakeChecker{name: "redis"},
 	)
+	a := NewAPI(svc)
 
-	r := chi.NewRouter()
-	Mount(svc)(r)
-
-	srv := httptest.NewServer(r)
-	defer srv.Close()
-
-	resp, err := http.Get(srv.URL + "/healthz")
+	resp, err := a.GetHealthz(context.Background(), api.GetHealthzRequestObject{})
 	if err != nil {
-		t.Fatalf("GET /healthz 失敗: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusServiceUnavailable {
-		t.Fatalf("狀態碼 = %d, want %d", resp.StatusCode, http.StatusServiceUnavailable)
+		t.Fatalf("GetHealthz 回傳 error: %v", err)
 	}
 
-	var body Report
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		t.Fatalf("解析回應 JSON 失敗: %v", err)
+	body, ok := resp.(api.GetHealthz503JSONResponse)
+	if !ok {
+		t.Fatalf("回應型別 = %T, want api.GetHealthz503JSONResponse", resp)
 	}
-	if body.Status != "degraded" {
-		t.Fatalf("body.Status = %q, want %q", body.Status, "degraded")
+	if body.Status != api.Degraded {
+		t.Fatalf("body.Status = %q, want %q", body.Status, api.Degraded)
 	}
 	if body.Checks["postgres"] != "down" {
 		t.Fatalf("body.Checks[postgres] = %q, want %q", body.Checks["postgres"], "down")

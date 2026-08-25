@@ -1,15 +1,10 @@
-// Command api 是包租代管服務的進入點。
+// Command api 是包租代管服務的行程進入點：設定載入、開連線、signal 與優雅關閉。
+// 實際把元件接起來的組裝在 internal/app（抽出去是為了讓整合測試能在同一個
+// 行程內組出 handler，見該套件的說明）。
 //
-// 組裝順序：config.Load → logging.New → 開 Postgres／Redis 連線 → 組
-// health.Service → pgrepo.New(db) → property.NewService(repo) →
-// httpapi.NewHandler(svc, logger) → server.NewRouter（掛上 health.Mount 與
-// propertyHandler.Mount）→ server.Run。設定載入失敗時把訊息寫到 stderr 並以
-// 非 0 code 結束；成功則啟動 HTTP server，收到 SIGINT/SIGTERM 時優雅關閉。
-//
-// 啟動時會對 Postgres／Redis 各做一次連線驗證，但連不上時只記錄警告、
-// 不會讓服務啟動失敗 —— 服務仍會啟動並持續回應請求，讓 GET /healthz
-// 能如實回報 503「degraded」。這是「以有效設定檔啟動服務」與「相依斷線時
-// /healthz 回 503」這兩個 BDD scenario 能同時成立的關鍵。
+// 啟動時對 Postgres／Redis 各做一次連線驗證，但連不上時**只記錄警告、
+// 不讓啟動失敗**——服務仍會起來並持續回應請求，GET /healthz 才能如實
+// 回報 503「degraded」。這是刻意的：相依斷線時要能被觀測到，而不是整個服務消失。
 package main
 
 import (
@@ -22,14 +17,11 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/yongde2900/chuchu2/internal/app"
 	"github.com/yongde2900/chuchu2/internal/config"
-	"github.com/yongde2900/chuchu2/internal/health"
 	"github.com/yongde2900/chuchu2/internal/platform/logging"
 	"github.com/yongde2900/chuchu2/internal/platform/postgres"
 	"github.com/yongde2900/chuchu2/internal/platform/redisclient"
-	"github.com/yongde2900/chuchu2/internal/property"
-	"github.com/yongde2900/chuchu2/internal/property/httpapi"
-	"github.com/yongde2900/chuchu2/internal/property/pgrepo"
 	"github.com/yongde2900/chuchu2/internal/server"
 )
 
@@ -37,7 +29,8 @@ func main() {
 	os.Exit(run())
 }
 
-// run 是 main 的實際邏輯，回傳 process exit code，方便測試與維持 main 精簡。
+// 邏輯收在 run 裡回傳 exit code，讓 main 只剩 os.Exit——exit code 才可測，
+// 而且 main 的 os.Exit 會跳過 defer。
 func run() int {
 	configName := flag.String("config", "config", "設定檔名稱（對應 config/<name>.yaml，不含副檔名）")
 	flag.Parse()
@@ -76,19 +69,12 @@ func run() int {
 		logger.Warn("啟動時無法連線 redis，服務仍會啟動（/healthz 會回報 degraded）", "error", err)
 	}
 
-	healthSvc := health.NewService(
-		health.NewPostgresChecker(db),
-		health.NewRedisChecker(redisClient),
-	)
-
-	propertyRepo := pgrepo.New(db)
-	propertySvc := property.NewService(propertyRepo)
-	propertyHandler := httpapi.NewHandler(propertySvc, logger)
-
-	router := server.NewRouter(server.Options{
-		Debug:  cfg.Server.Debug,
+	router := app.NewHandler(app.Deps{
+		DB:     db,
+		Redis:  redisClient,
 		Logger: logger,
-	}, health.Mount(healthSvc), propertyHandler.Mount())
+		Debug:  cfg.Server.Debug,
+	})
 
 	addr := net.JoinHostPort("", strconv.Itoa(cfg.Server.Port))
 	if err := server.Run(ctx, addr, router, cfg.Server.ShutdownTimeout, logger); err != nil {

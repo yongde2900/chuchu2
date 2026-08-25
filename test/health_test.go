@@ -19,10 +19,7 @@ type healthReport struct {
 }
 
 func TestHealth_AllDependenciesUp_ReturnsOK(t *testing.T) {
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	body, status := getHealthz(t, baseURL, output)
 
@@ -49,10 +46,7 @@ func TestHealth_PostgresDown_ReturnsDegraded503(t *testing.T) {
 	pgDSN, pgStop := testsupport.StartPostgres(t)
 	redisAddr, _ := testsupport.StartRedis(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": pgDSN,
-		"CHUCHU_REDIS_ADDR":   redisAddr,
-	})
+	baseURL, output := startInProcessAPI(t, pgDSN, redisAddr)
 
 	// 先確認服務真的連得上兩個相依服務（200），才能區分「探針正確偵測到斷線」
 	// 與「探針從頭到尾就沒連上過」。
@@ -72,10 +66,7 @@ func TestHealth_RedisDown_ReturnsDegraded503(t *testing.T) {
 	pgDSN, _ := testsupport.StartPostgres(t)
 	redisAddr, redisStop := testsupport.StartRedis(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": pgDSN,
-		"CHUCHU_REDIS_ADDR":   redisAddr,
-	})
+	baseURL, output := startInProcessAPI(t, pgDSN, redisAddr)
 
 	body, status := getHealthz(t, baseURL, output)
 	if status != http.StatusOK || body.Status != "ok" {

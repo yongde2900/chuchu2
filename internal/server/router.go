@@ -1,9 +1,8 @@
 // Package server 負責把各 feature 套件的路由組裝成一個完整的 chi router，
 // 並提供啟動／優雅關閉 HTTP server 的邏輯。
 //
-// 為了保持依賴反轉（見專案 CLAUDE.md「相依的反轉點」），internal/server
-// 不 import 任何 feature 套件（例如 internal/health、internal/property/...）；
-// 每個 feature 套件透過實作 Mount 自己把路由掛上來。
+// internal/server 不得 import 任何 feature 套件；每個 feature 透過 Mount
+// 自己把路由掛上來。
 package server
 
 import (
@@ -16,24 +15,22 @@ import (
 	"github.com/yongde2900/chuchu2/internal/httpx"
 )
 
-// Mount 讓每個 feature 套件宣告自己的路由。只有真的擁有 HTTP 路由的套件
-// （例如 httpapi、health）才需要實作它。
+// Mount 讓 feature 套件自己宣告路由。
 type Mount func(r chi.Router)
 
-// Options 是組裝 router 時的選項。
 type Options struct {
-	// Debug 為 true 時才掛載 GET /debug/panic（測試用、必定 panic 的路由）。
+	// 為 true 時才掛載 GET /debug/panic（測試用、必定 panic 的路由）。
 	Debug bool
-	// Logger 供 access log 與 Recoverer 使用；為 nil 時退回 slog.Default()。
+	// 為 nil 時退回 slog.Default()。
 	Logger *slog.Logger
 }
 
-// NewRouter 依 opts 與各 feature 套件提供的 mounts 組出完整的 chi router。
-//
-// middleware 順序固定為：RequestID → 結構化 access log → Recoverer。
-// 這個順序確保：(1) access log 與 Recoverer 都能拿到 request id；
-// (2) handler 內的 panic 會先被 Recoverer 攔截、轉成 500 回應，
-// 之後 access log 才照常記一行，不會讓 panic 逃出 middleware chain。
+// middleware 順序固定為 RequestID → access log → EnsureJSONError → Recoverer，
+// 三個理由缺一不可：
+//   - RequestID 最外層，access log 與 Recoverer 才拿得到 request id。
+//   - Recoverer 最內層，panic 先轉成 500，access log 才記得到狀態碼。
+//   - EnsureJSONError 包在 Recoverer 外層，任何路由（含 /debug/panic 這種
+//     非產生的路由）漏接錯誤處理都會在這裡被改寫，純文字不可能外洩。
 func NewRouter(opts Options, mounts ...Mount) *chi.Mux {
 	logger := opts.Logger
 	if logger == nil {
@@ -43,6 +40,7 @@ func NewRouter(opts Options, mounts ...Mount) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(httpx.RequestID)
 	r.Use(accessLog(logger))
+	r.Use(httpx.EnsureJSONError(logger))
 	r.Use(httpx.Recoverer(logger))
 
 	if opts.Debug {
@@ -58,8 +56,7 @@ func NewRouter(opts Options, mounts ...Mount) *chi.Mux {
 	return r
 }
 
-// accessLog 是結構化的 access log middleware，記錄方法、路徑、狀態碼、
-// 耗時與 request_id。
+// accessLog 記錄方法、路徑、狀態碼、耗時與 request_id。
 func accessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +76,7 @@ func accessLog(logger *slog.Logger) func(http.Handler) http.Handler {
 	}
 }
 
-// statusRecorder 包住 http.ResponseWriter，讓 access log 記得到實際寫出的狀態碼。
+// 讓 access log 記得到實際寫出的狀態碼。
 type statusRecorder struct {
 	http.ResponseWriter
 	status int

@@ -14,8 +14,6 @@ import (
 	"net/http"
 	"testing"
 	"time"
-
-	"github.com/yongde2900/chuchu2/internal/testsupport"
 )
 
 // patchProperty 對 baseURL + /api/v1/properties/{id} 送出一次 PATCH 請求，
@@ -108,10 +106,7 @@ func createPropertyAtStatus(t *testing.T, baseURL, wantStatus string, output fun
 func TestPropertyUpdate_MonthlyRent_ReflectsOnGet(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	createStatus, createRaw := postProperty(t, baseURL, validPropertyRequestBody(), output)
 	if createStatus != http.StatusCreated {
@@ -174,10 +169,7 @@ func TestPropertyUpdate_MonthlyRent_ReflectsOnGet(t *testing.T) {
 func TestPropertyChangeStatus_ValidTransition_Returns200(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	createStatus, createRaw := postProperty(t, baseURL, validPropertyRequestBody(), output)
 	if createStatus != http.StatusCreated {
@@ -222,10 +214,7 @@ func TestPropertyChangeStatus_ValidTransition_Returns200(t *testing.T) {
 // TestPropertyChangeStatus_InvalidTransition_Returns409 對應 BDD Scenario
 // Outline「非法的物件狀態轉換被拒絕」，涵蓋全部四個 Examples。
 func TestPropertyChangeStatus_InvalidTransition_Returns409(t *testing.T) {
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	cases := []struct {
 		name       string

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync"
 	"testing"
 
@@ -111,42 +110,5 @@ func TestWriteError_NonAppError(t *testing.T) {
 	}
 	if body.RequestID != "req-456" {
 		t.Fatalf("body.RequestID = %q, want %q", body.RequestID, "req-456")
-	}
-}
-
-// TestDecodeJSON_Valid 驗證合法 JSON 能被正確解出來。
-func TestDecodeJSON_Valid(t *testing.T) {
-	type payload struct {
-		Name string `json:"name"`
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"hello"}`))
-	got, err := DecodeJSON[payload](req)
-	if err != nil {
-		t.Fatalf("DecodeJSON 回傳 error: %v", err)
-	}
-	if got.Name != "hello" {
-		t.Fatalf("got.Name = %q, want %q", got.Name, "hello")
-	}
-}
-
-// TestDecodeJSON_Invalid 驗證非法 JSON 會回傳一個 apperr.Error（VALIDATION_FAILED）。
-func TestDecodeJSON_Invalid(t *testing.T) {
-	type payload struct {
-		Name string `json:"name"`
-	}
-
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{not json`))
-	_, err := DecodeJSON[payload](req)
-	if err == nil {
-		t.Fatalf("DecodeJSON 對非法 JSON 沒有回傳 error")
-	}
-
-	appErr, ok := errors.AsType[*apperr.Error](err)
-	if !ok {
-		t.Fatalf("DecodeJSON 回傳的 error 不是 *apperr.Error: %v", err)
-	}
-	if appErr.Code != apperr.CodeValidationFailed {
-		t.Fatalf("appErr.Code = %q, want %q", appErr.Code, apperr.CodeValidationFailed)
 	}
 }

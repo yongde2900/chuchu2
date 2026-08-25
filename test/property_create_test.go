@@ -22,8 +22,6 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
-
-	"github.com/yongde2900/chuchu2/internal/testsupport"
 )
 
 // dbQueryTimeout 是每次直接查共用 Postgres 容器驗證資料庫狀態的逾時上限。
@@ -55,19 +53,19 @@ type fieldErrorBody struct {
 // validPropertyRequestBody 回傳 BDD「建立一筆包租物件」範例中的合法 request body。
 func validPropertyRequestBody() map[string]any {
 	return map[string]any{
-		"city":            "臺北市",
-		"district":        "大安區",
-		"street_address":  "復興南路一段 100 號",
-		"floor":           "5",
-		"room_no":         "A",
-		"layout":          "INDEPENDENT_SUITE",
-		"area_ping":       "8.50",
-		"monthly_rent":    "25000.50",
-		"management_fee":  "1200.00",
-		"deposit_months":  2,
-		"rental_mode":     "MASTER_LEASE",
-		"landlord_name":   "王大明",
-		"landlord_phone":  "0912345678",
+		"city":           "臺北市",
+		"district":       "大安區",
+		"street_address": "復興南路一段 100 號",
+		"floor":          "5",
+		"room_no":        "A",
+		"layout":         "INDEPENDENT_SUITE",
+		"area_ping":      "8.50",
+		"monthly_rent":   "25000.50",
+		"management_fee": "1200.00",
+		"deposit_months": 2,
+		"rental_mode":    "MASTER_LEASE",
+		"landlord_name":  "王大明",
+		"landlord_phone": "0912345678",
 	}
 }
 
@@ -76,10 +74,7 @@ func validPropertyRequestBody() map[string]any {
 func TestPropertyCreate_Success_Returns201WithVacantStatus(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	status, raw := postProperty(t, baseURL, validPropertyRequestBody(), output)
 
@@ -117,10 +112,7 @@ func TestPropertyCreate_Success_Returns201WithVacantStatus(t *testing.T) {
 func TestPropertyCreate_DuplicateAddress_Returns409(t *testing.T) {
 	truncateProperties(t)
 
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	firstStatus, firstRaw := postProperty(t, baseURL, validPropertyRequestBody(), output)
 	if firstStatus != http.StatusCreated {
@@ -155,10 +147,7 @@ func TestPropertyCreate_DuplicateAddress_Returns409(t *testing.T) {
 // 欄位皆合法的前提下，對 POST /api/v1/properties 送出請求並驗證：狀態碼 400、
 // code 為 VALIDATION_FAILED、details 中存在一項 field 等於該欄位、資料筆數仍為 0。
 func TestPropertyCreate_ValidationFailed_ReportsField(t *testing.T) {
-	baseURL, output, _ := testsupport.StartAPI(t, "test", map[string]string{
-		"CHUCHU_POSTGRES_DSN": sharedPostgres(),
-		"CHUCHU_REDIS_ADDR":   sharedRedis(),
-	})
+	baseURL, output := startInProcessAPI(t, sharedPostgres(), sharedRedis())
 
 	cases := []struct {
 		name  string

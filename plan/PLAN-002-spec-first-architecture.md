@@ -1,7 +1,10 @@
 # PLAN-002 — 架構調整：spec-first handler、統一錯誤中介層、bun/migrate
 Created: 2026-08-24
-Status: in-progress
+Status: done
 Approved: 2026-08-24
+Verified: 2026-08-25（hars-verify 完成整合閘門：go build ./... 與 go vet ./... 乾淨、
+  go test -race -count=1 ./... 全套通過，並以實際編譯出的 api／dbmigrate binary
+  搭配真實 Postgres/Redis 容器，對已組裝系統逐一實跑九個 Integration Scenario）
 Working Directory: .
 BDD Spec: ./bdd/BDD-002-spec-first-architecture.feature
 Language: Go 1.26.2（開發機 darwin/arm64；module `github.com/yongde2900/chuchu2`）
@@ -603,7 +606,7 @@ Expected Goals (from BDD scenarios):
 ---
 
 ### Task 3: migration 進階行為 —— rollback group 語意、交易性、create_sql、unlock
-Status: in-progress
+Status: done
 Directory: test
 Depends on: Task 2（`db.NewMigrator`、六個子指令、`.tx.` 檔名慣例、`test/migrate_test.go` 的既有輔助函式）
 Pass threshold: 8.5
@@ -621,11 +624,11 @@ Provides (public interface):
 // Unlock 的 defer 沒生效），修正它是本 task 的份內事，不要為了「不動 Task 2」而繞路。
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: rollback 只回滾最後一個 group，先前的 group 不受影響
-- [ ] Scenario: 沒有已套用的 group 時 rollback 安全地無動作
-- [ ] Scenario: migration 中途失敗時整個 migration 回滾，不留下半套 schema
-- [ ] Scenario: create_sql 產生一對成對的空白 migration 檔案
-- [ ] Scenario: unlock 清除遺留的 migration 鎖定
+- [x] Scenario: rollback 只回滾最後一個 group，先前的 group 不受影響
+- [x] Scenario: 沒有已套用的 group 時 rollback 安全地無動作
+- [x] Scenario: migration 中途失敗時整個 migration 回滾，不留下半套 schema
+- [x] Scenario: create_sql 產生一對成對的空白 migration 檔案
+- [x] Scenario: unlock 清除遺留的 migration 鎖定
 
 實作要求：
 - **每一個 scenario 都必須起自己的專屬容器**（`testsupport.StartPostgres(t)`），
@@ -659,7 +662,7 @@ Expected Goals (from BDD scenarios):
 ---
 
 ### Task 4: 由 spec 產生 api/api.gen.go
-Status: pending
+Status: done
 Directory: api, test
 Depends on: none
 Provides (public interface):
@@ -684,7 +687,7 @@ Provides (public interface):
 // HandlerWithOptions、NewStrictHandlerWithOptions、GetSwagger。
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 重新產生程式碼不會產生任何差異
+- [x] Scenario: 重新產生程式碼不會產生任何差異
 
 實作要求：
 - **先改 `api/openapi.yaml`，再產生。** 必須為 `listProperties` operation 補上 `400` 回應
@@ -708,7 +711,7 @@ Expected Goals (from BDD scenarios):
 ---
 
 ### Task 5: spec-first handler 與統一錯誤中介層
-Status: pending
+Status: done
 Directory: internal/property/httpapi, internal/health, internal/apihttp, internal/httpx, cmd/api, test
 Depends on: Task 1（`apperr` sentinel 與 `With*`）、Task 4（`api` 套件的產生型別與 `StrictServerInterface`）
 Pass threshold: 8.5
@@ -768,15 +771,15 @@ func RequestErrorHandler(logger *slog.Logger) func(http.ResponseWriter, *http.Re
 func ResponseErrorHandler(logger *slog.Logger) func(http.ResponseWriter, *http.Request, error)
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: spec 宣告的每一個 endpoint 都真的路由得到
-- [ ] Scenario: 既有的 API 行為在改用產生的 handler 之後完全不變
-- [ ] Scenario: handler 回傳 apperr 時由中介層轉成對應的狀態碼與 body
-- [ ] Scenario: 領域層的衝突錯誤同樣經由中介層轉譯
-- [ ] Scenario: 無法解析的 request body 由中介層轉成 400
-- [ ] Scenario: 路徑參數格式錯誤由中介層轉成 400
-- [ ] Scenario: 查詢參數型別錯誤由中介層轉成 400
-- [ ] Scenario: 未分類的錯誤降級為 500 且不外洩底層訊息
-- [ ] Scenario Outline: 每一條錯誤路徑的回應都是統一的 JSON 形狀
+- [x] Scenario: spec 宣告的每一個 endpoint 都真的路由得到
+- [x] Scenario: 既有的 API 行為在改用產生的 handler 之後完全不變
+- [x] Scenario: handler 回傳 apperr 時由中介層轉成對應的狀態碼與 body
+- [x] Scenario: 領域層的衝突錯誤同樣經由中介層轉譯
+- [x] Scenario: 無法解析的 request body 由中介層轉成 400
+- [x] Scenario: 路徑參數格式錯誤由中介層轉成 400
+- [x] Scenario: 查詢參數型別錯誤由中介層轉成 400
+- [x] Scenario: 未分類的錯誤降級為 500 且不外洩底層訊息
+- [x] Scenario Outline: 每一條錯誤路徑的回應都是統一的 JSON 形狀
 
 實作要求：
 - **這也是一次原子置換。** 舊的 `httpapi.Handler`/`Mount` 與 `health.Mount` 一旦刪除，路由就必須
@@ -838,7 +841,7 @@ Expected Goals (from BDD scenarios):
 ---
 
 ### Task 6: 回應防護網 —— 讓「漏接 error hook」在結構上不可能外洩純文字
-Status: pending
+Status: done
 Directory: internal/httpx, internal/server, test
 Depends on: Task 5（已組裝完成的 router、產生的 handler 與三個 hook）
 Pass threshold: 8.5
@@ -868,9 +871,9 @@ package server // internal/server
 // 簽章不變（logger 已經在 Options 裡，不需要新增欄位，也不得改動參數列形狀）。
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: handler 內的 panic 仍然轉成統一形狀的 500
-- [ ] Scenario: 漏接的 error hook 不會讓純文字外洩給呼叫端
-- [ ] Scenario: 防護網不會干擾正常的成功回應
+- [x] Scenario: handler 內的 panic 仍然轉成統一形狀的 500
+- [x] Scenario: 漏接的 error hook 不會讓純文字外洩給呼叫端
+- [x] Scenario: 防護網不會干擾正常的成功回應
 
 實作要求：
 - 防護網必須掛在 **router 層級**（`internal/server.NewRouter` 的 middleware chain），不是只包住
@@ -985,3 +988,164 @@ Expected Goals (from BDD scenarios):
   1. `test/migrate_test.go` 的 `errors.As` 改為專案慣例的 `errors.AsType[*exec.ExitError]`；
   2. `db/embed.go` 一行以 `go:embed` 開頭的中文註解被 staticcheck 判為無效編譯指令（SA9009），
      改寫首字避免誤導；真正的 `//go:embed *.sql` 未受影響。
+
+### Task 3 — Iter 1 — score 9.5/10 — PASS — Task 3 完成
+- Changed: 僅新增 `test/migrate_advanced_test.go` 一個檔案（五個測試 ＋ `migrationDir` /
+  `writeTempMigration` / `initAndMigrate` 三個輔助函式）。**沒有動任何正式程式碼** ——
+  Task 2 的 CLI 對五個 scenario 一次就全部正確，沒有發現需要修正的缺陷。
+  沿用 Task 2 的 `runDBMigrate` / `openDBMigrateTestDB` / `tableExists` /
+  `bunMigrationsNameCount` / `createPropertiesMigrationName`，未重寫。
+- 驗證：`go build ./...`、`go vet ./...` 乾淨；`go test -race -count=1 ./...` 全套全綠
+  （`test` 套件 31.9s，11 個 `TestDBMigrate*` 測試全過）。四個需要乾淨資料庫的 scenario
+  各起專屬容器，`create_sql` 不起容器，全檔無 `t.Parallel()`，`test/main_test.go` 未被更動。
+- **Coordinator 獨立驗證（不採信 Executor 自述）—— 四個 mutation，全部如預期：**
+  1. 把臨時 migration 檔名的 `.tx.` 拿掉 → 交易性測試轉紅（`tx_probe 資料表應不存在…實際存在`），
+     證明 `.tx.` 帶來的交易保護正是這個測試在量的東西。
+  2. **在 1 之上再把 `--bun:split` 那行拿掉 → 測試又轉綠，儘管此時完全沒有交易保護。**
+     這正是 plan §J 預告的「因為錯誤的理由通過」：Postgres 的 simple query protocol 會把整批
+     敘述包成隱式交易。證明 `--bun:split` 這一行才是讓斷言真正生效的關鍵。
+  3. 把 `runUnlock` 改成只印成功訊息就 return 0 → unlock 測試轉紅（`紀錄數 = 1，want 0`）。
+  4. 把 `runRollback` 改成迴圈回滾到沒有 group 為止 → group 語意測試轉紅
+     （`properties 資料表應仍存在…實際不存在`），證明它確實分辨得出「只回滾最後一個 group」
+     與「全部回滾」。
+  兩個被 mutate 的檔案還原後 `git diff` 為空（逐位元組相同），`db/` 底下沒有殘留任何 `.sql`。
+- Evaluator（fresh context）另行對照 bun v1.2.18 原始碼確認：`.tx.` 後綴確實走 `BeginTx`、
+  `--bun:split` 以行前綴比對、`WithMarkAppliedOnSuccess` 語意如預期，並確認
+  `nothing to rollback` 是程式自己的字面輸出而非回吐輸入。
+- 留下的兩則 [info]（皆非缺陷、不需處理）：(1) `run()` 即使是 `create_sql` 也會無條件建立
+  Postgres 連線池與 migrator，目前無害純粹因為 `postgres.Open` 是惰性的（`sql.OpenDB` 不撥接），
+  但若哪天 `Open` 改成 eager 就會變成意外耦合；(2) 註解品質良好，解釋了「為什麼」而非只有「做什麼」。
+
+### Task 4 — Iter 1 — score 9.2/10 — PASS — Task 4 完成
+- Changed: `api/openapi.yaml`（**只有兩個 hunk**：`listProperties` 補上 `"400"` → `$ref: ErrorBody`
+  （example 的 `field` 為 `page`），以及 `servers:` description 改寫成不再提及即將被刪的
+  `test/contract_test.go`；其餘語意零變動，已由 `git diff` 逐 hunk 確認）、新增
+  `api/oapi-codegen.yaml`（models／chi-server／embedded-spec／strict-server）、
+  `api/generate.go`（`//go:generate` 釘在 `@v2.8.0`）、產生 `api/api.gen.go`（53,251 bytes）、
+  新增 `test/codegen_test.go`、`go.mod` / `go.sum` 只新增直接相依
+  `github.com/oapi-codegen/runtime`（＋ `go-jsonmerge/v2` 為其 indirect），
+  **產生器本身未進 tool 區塊**，已跑 `go mod vendor`。
+- 驗證：`go build ./...`、`go vet ./...` 乾淨；`go test -race -count=1 ./...` 全套全綠
+  （`test` 套件 34.9s）。`test/contract_test.go` 此時仍在且仍全綠（Task 5 才會刪），
+  `test/main_test.go` 未被更動。
+- **產生的名稱逐一比對 Known Context §H 的契約，全數相符**（`StrictServerInterface` 六個
+  operation、`ErrorBody{RequestId, Details *[]FieldError}`、五個帶 `ParamName` 的綁定錯誤型別、
+  `ChiServerOptions`、`StrictHTTPServerOptions`、`NewStrictHandlerWithOptions`、
+  `HandlerWithOptions`、`GetSwagger`）—— Task 5／6 可以直接照著寫，不需要重新對名稱。
+- **Coordinator 獨立驗證（不採信 Executor 自述）—— 兩個 mutation，都如預期轉紅並指出位元組位置：**
+  1. 手動編輯 `api/api.gen.go`（在 `type FieldError struct` 插一段註解）→ 測試轉紅
+     （`長度不同: 執行前 53267 bytes, 執行後 53251 bytes`、`第一個相異位元組在 offset 9876`）。
+  2. **改 `api/openapi.yaml` 加一個 `postal_code` 查詢參數但不重新產生**（這才是本 scenario 真正
+     要防的現實漂移）→ 測試轉紅（`執行前 53251 bytes, 執行後 53960 bytes`、`offset 14179`）。
+  兩個 mutation 還原後 `api/api.gen.go` 與 `api/openapi.yaml` 均逐位元組相同。
+- Evaluator（fresh context）另行在測試框架外自己跑一次 `go generate ./api/...` 並 `diff`，
+  確認產出與已提交檔案逐位元組相同（排除「拿檔案跟自己比」或「產生器失敗被吞掉」的可能），
+  並確認 `api/api.gen.go` 帶著標準的 `DO NOT EDIT` 標頭、gofmt 乾淨、無手改痕跡。
+- 留下的兩則 [info]（皆非缺陷）：(1) `assertIdenticalBytes` 的手寫 min/max `if` 可改用 Go 內建的
+  `min`／`max`（gopls modernize 的建議，不在本專案 `go vet` 的閘門內）；(2) codegen 測試位於
+  `test` 套件，會連帶付出 `TestMain` 起容器的固定成本，但那是既有的套件級成本，測試本身不起容器。
+- **環境註記：** `/vendor` 在本 repo 的 `.gitignore` 中，因此 `go mod vendor` 的結果不會出現在
+  `git status`。這是既有狀態，不是本 task 造成的；但 §I.4「每次改動 go.mod 後重跑 go mod vendor」
+  仍然必要（本機建置靠它）。
+
+### Task 5 — Iter 1 — score 9.3/10 — PASS — Task 5 完成
+- Changed: 新增 `internal/apihttp/{apihttp.go,apihttp_test.go}`（三個 error hook ＋ `Mount`）、
+  `cmd/api/server.go`、`internal/property/httpapi/list.go`、`test/routing_test.go`、
+  `test/error_shape_test.go`；改寫 `internal/property/httpapi/httpapi.go`（`API`/`NewAPI` ＋ 五個
+  operation ＋ `toAPIProperty`/`formatMoney`，刪除手寫 DTO／`Handler`／`Mount`／`parsePathID`／
+  `parseListFilter`／`parseNonNegativeInt`）與其兩個單元測試、`internal/health/health.go`
+  （新增 `API`，刪除 `Mount`）與 `health_test.go`、`internal/httpx/json.go`（刪除 `DecodeJSON`）
+  與 `json_test.go`、`cmd/api/main.go`（改為 `apihttp.Mount(&apiServer{...}, logger)`）；
+  **刪除 `test/contract_test.go`**（454 行，整檔）。`go.mod` 未變動。
+- 驗證：`go build ./...`、`go vet ./...` 乾淨；`go test -race -count=1 ./...` 全套全綠
+  （`test` 套件 31.9s）。`TestRouting_AllDeclaredEndpointsAreRouted` 六個 endpoint 全過，
+  `TestErrorShape_*` 五個獨立測試 ＋ Scenario Outline 五個 subtest 全過。
+- **Coordinator 獨立驗證（不採信 Executor 自述）：**
+  - `git diff --stat -- test/` **只有** `test/contract_test.go | 454 ------` 一筆純刪除 ——
+    六個 PLAN-001 測試檔與 `main_test.go` 逐位元組未動。這正是「既有 API 行為完全不變」這個
+    scenario 得以成立的前提，而不是套套邏輯。
+  - 分層以 `go list -deps` 實查：`internal/apihttp` 只 import `api`/`apperr`/`httpx`/`server`，
+    無任何 feature 套件；`internal/health` 已不再 import `internal/server`；
+    `internal/property/*.go` 對 bun／net-http 的 grep 命中全是註解。
+  - `DecodeJSON`、`health.Mount`、`httpapi.NewHandler` 全 repo 零引用。
+  - **四個 mutation，全部如預期轉紅：**
+    1. `StringFixed(2)` → `String()` → `property_create_test.go:102: body.monthly_rent = "25000.5", want "25000.50"`。
+    2. `make([]api.Property, 0, n)` → `var items []api.Property` →
+       `property_query_test.go:390: items 為 JSON null，want 空陣列 []（body={"items":null,"total":0}`
+       —— 證實這條防線是看原始 bytes，不是看反序列化後的值。
+    3. `paramName` 回傳 `e.ParamName + "_MUTATED"` → `field:id` 與 `field:page` 兩條斷言同時轉紅。
+       （註：第一次把它改成 `return ""` 造成 `e` 未使用而編譯失敗，服務起不來 ——
+       那是「因為錯誤的理由轉紅」，已改成會編譯的 mutation 重做。）
+    4. `httpx.WriteError` 的降級分支改用 `err.Error()` 當 message →
+       `apihttp_test.go:147: body.Message = "pq: connection refused on 10.0.0.7", 不應包含...`。
+    四個 mutation 還原後所有檔案逐位元組相同。
+- **⚠️ 本 plan 的一處文字缺陷（已確認，非執行者取巧）：** 本文件 Task 5 實作要求第 4 點寫的
+  `type apiServer struct { *health.API; *httpapi.API }` **在 Go 中無法編譯** —— 兩個被內嵌的型別
+  匯出名稱都是 `API`，隱含欄位名衝突（`API redeclared`）。Coordinator 已用一個 scratch 套件
+  （兩個各自匯出 `API` 的套件）獨立重現此編譯錯誤。實作改用具名欄位 `healthAPI`／`propertyAPI`
+  ＋ 六個一行轉發方法，並保留 `var _ api.StrictServerInterface = (*apiServer)(nil)` 編譯期斷言，
+  語意完全等價。`apiServer` 是 `package main` 中的未匯出型別，Task 6 依賴的是「已組裝完成的
+  router 與三個 hook」，不依賴它的欄位形狀，因此**沒有任何介面契約受影響**。
+  日後若要修訂本文件，這一行應改寫成具名欄位版本。
+- 留下的一則 [info] 覆蓋缺口（非本輪九個 scenario 之一，程式碼本身正確）：
+  `ChangePropertyStatus` 自行驗證 status 列舉值的那條路徑（`httpapi.go:123-129`），
+  目前**沒有任何測試斷言它產生的 `details[].field == "status"`**。若日後要補，
+  一個 `internal/property/httpapi` 的單元測試即可涵蓋。
+
+### Task 6 — Iter 1 — score 8.0/10 — FAIL（未達 8.5，且有一則 [error]）
+- Changed: 新增 `internal/httpx/safetynet.go`（`EnsureJSONError` ＋ `jsonErrorGuard`）、
+  `internal/httpx/safetynet_test.go`（5 個單元測試）、`test/safetynet_test.go`（成功回應整合測試）；
+  `internal/server/router.go` 只加一行 `r.Use(httpx.EnsureJSONError(logger))`（在 accessLog 與
+  Recoverer 之間）＋ 更新 doc comment，`NewRouter`／`Options` 簽章未動。
+- 驗證：`go build ./...`、`go vet ./...` 乾淨；`go test -race -count=1 ./...` 全套全綠。
+  `test/panic_test.go` 與 `test/main_test.go` 逐位元組未動。
+- **三個 scenario 全部 met**，且「漏接 hook」那條確實用真正不帶 options 的
+  `api.NewStrictHandler` ＋ `api.Handler` 驅動，不是手寫 `http.Error` 假裝。
+- **Coordinator 獨立驗證 —— 三個 mutation：**
+  1. 拿掉 `if g.intercepted { return len(p), nil }`（不吞下游 Write）→ 轉紅，且外洩的正是產生的
+     handler 自己的訊息：`{"code":"INTERNAL",...}Invalid format for parameter id: error
+     unmarshaling 'not-a-valid-uuid' text as *uuid.UUID: invalid UUID length: 16`
+     —— 證明測試驅動的是真的 oapi-codegen 預設值。
+  2. 攔截時把狀態碼改寫成 500 → 兩條測試轉紅（`status = 500, want 400`），證明狀態碼保留有被斷言。
+  3. **⚠️ 把 `r.Use(httpx.EnsureJSONError(logger))` 整行從 `NewRouter` 刪掉 → 專案照樣建置成功，
+     且整個測試套件全綠**（`./internal/...` 與 Docker-backed `./test/` 都是 ok）。
+     **沒有任何測試守得住這一行。**
+- **Evaluator（fresh context）獨立重現了 mutation 3，並判定為 [error] 而非 warning，理由：**
+  本 task 的全部意義就是把「漏接」從「靠人為紀律」變成「結構上不可能」，而那個結構保證真正
+  落腳的地方 —— `NewRouter` 裡的那一行 —— 恰恰是唯一沒有回歸保護的東西；這正是本 task 要消滅的
+  同一類靜默退化，只是往上移了一層。現有測試都是在測試裡手工組合 middleware
+  （`RequestID(EnsureJSONError(logger)(generated))`），從未經過 `server.NewRouter`；
+  而 `test/safetynet_test.go` 雖然走真實組裝好的 router，卻只驗成功路徑 ——
+  那條路徑掛不掛防護網行為完全相同，因此也抓不到。
+- **Iter 2 要做的事（Evaluator 指定的修法）：** 在 `internal/server/router_test.go` 補一個
+  router 層級的測試：用 `server.NewRouter` 搭配一個 `Mount`，在裡面註冊一條直接寫出
+  `Content-Type: text/plain` ＋ 400 的路由（模擬某條掛在 router 上的路由漏接了 hook），
+  斷言回應被改寫成 JSON。這個測試在 mutation 3 之下必須轉紅。
+
+### Task 6 — Iter 2 — score 9.0/10 — PASS — Task 6 完成
+- Changed: **只有 `internal/server/router_test.go`**（新增兩個測試）。
+  `internal/server/router.go` 與 Iter 1 交付狀態**逐位元組相同** —— 本輪只補回歸保護，
+  不動已經正確的實作；`internal/httpx/safetynet.go`、其單元測試、`test/safetynet_test.go`
+  亦完全未動。
+  1. `TestNewRouter_MountedRouteMissesErrorHook_SafetyNetRewritesToJSON` —— 透過
+     `server.NewRouter` 本身（不是測試裡手工組合的 chain）掛一條直接寫出
+     `text/plain` 400 的路由，斷言狀態碼仍為 400、Content-Type 以 `application/json` 開頭、
+     `code == "INTERNAL"`、`request_id` 非空、原純文字不出現在 body 中。
+  2. `TestNewRouter_MountedRouteSuccess_PassesThroughUnchanged` —— 成功路徑的正對照。
+- **Iter 1 的 [error] 已關閉，並由 Coordinator 用同一個 mutation 親自驗證：**
+  再次刪掉 `r.Use(httpx.EnsureJSONError(logger))` → 這次轉紅
+  （`router_test.go:122: Content-Type = "text/plain; charset=utf-8", want 開頭為
+  "application/json"（EnsureJSONError 沒有掛在 NewRouter 的 chain 上）`），
+  而且**整個專案的 `go test -race -count=1 ./...` 也隨之轉紅** —— 在 Iter 1 時這個 mutation
+  是完全靜默的。還原後 `router.go` 逐位元組相同、全套測試恢復全綠。
+- 驗證：`go build ./...`、`go vet ./...` 乾淨；`go test -race -count=1 ./...` 全套全綠
+  （`internal/server` 1.5s、`test` 30.9s）。三個 scenario 全部 met。
+- Evaluator（fresh context）獨立重現了上述 red/green，並確認 Iter 2 沒有 scope creep：
+  `NewRouter`／`Options` 簽章未動、`internal/server` 未 import `api`、無 body 緩衝、
+  無 `t.Parallel()`、既有測試的斷言未被修改。
+- **留下的一則 [info]（非阻斷，未修）：** 契約寫明 middleware 順序為
+  `RequestID → access log → EnsureJSONError → Recoverer`，但**沒有任何測試釘住
+  `EnsureJSONError` 與 `Recoverer` 的相對順序** —— Evaluator 實測把兩者對調後全套仍然全綠。
+  之所以不算安全漏洞：`Recoverer` 本來就直接寫出正確的 JSON（不倚賴被防護網包住），
+  而 `EnsureJSONError` 不論位置如何都會守住每一個 handler。這是「文件與契約遵循」層級的
+  缺口，不是 Iter 1 那個「防護網到底有沒有掛上」的結構性漏洞（後者已確實關閉）。

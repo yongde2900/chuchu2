@@ -7,9 +7,8 @@ servers:
   - url: /
     description: |
       相對路徑，不綁定特定 host——服務實際監聽的 host:port 由部署環境
-      （本機開發、測試、正式環境）決定。契約測試（test/contract_test.go）
-      正是靠這個相對 server URL，才能對測試中隨機取得的埠號比對路由，
-      不受限於固定的 host。
+      （本機開發、測試、正式環境）決定，相對 server URL 讓以路由比對為
+      基礎的工具不受限於固定的 host 或埠號。
 
 paths:
   /healthz:
@@ -159,6 +158,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PropertyList"
+        "400":
+          description: 查詢參數未通過驗證。
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+              example:
+                code: VALIDATION_FAILED
+                message: 驗證失敗
+                request_id: "01J..."
+                details:
+                  - field: page
+                    reason: 必須是正整數
 
   /api/v1/properties/{id}:
     get:

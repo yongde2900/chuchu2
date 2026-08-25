@@ -2,12 +2,8 @@ package property
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-
-	"github.com/yongde2900/chuchu2/internal/apperr"
 )
 
 // Repository 是領域層對持久化的唯一出口；實作在 pgrepo 子套件。
@@ -35,56 +31,4 @@ type Service struct {
 
 func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
-}
-
-// 新物件的 Status 一律是 VACANT，ID 由服務端產生。
-func (s *Service) Create(ctx context.Context, in CreateInput) (*Property, error) {
-	if errs := in.Validate(); len(errs) > 0 {
-		return nil, apperr.Validation(errs...)
-	}
-
-	// Validate 已確保可解析，這裡必定為 nil；仍檢查以免日後規則變動時默默吞掉錯誤。
-	areaPing, err := decimal.NewFromString(in.AreaPing)
-	if err != nil {
-		return nil, apperr.Wrap(apperr.CodeValidationFailed, "area_ping 解析失敗", err)
-	}
-	monthlyRent, err := decimal.NewFromString(in.MonthlyRent)
-	if err != nil {
-		return nil, apperr.Wrap(apperr.CodeValidationFailed, "monthly_rent 解析失敗", err)
-	}
-
-	managementFee := decimal.Zero
-	if in.ManagementFee != "" {
-		managementFee, err = decimal.NewFromString(in.ManagementFee)
-		if err != nil {
-			return nil, apperr.Wrap(apperr.CodeValidationFailed, "management_fee 解析失敗", err)
-		}
-	}
-
-	now := time.Now().UTC()
-	p := &Property{
-		ID:            uuid.New(),
-		City:          in.City,
-		District:      in.District,
-		StreetAddress: in.StreetAddress,
-		Floor:         in.Floor,
-		RoomNo:        in.RoomNo,
-		Layout:        Layout(in.Layout),
-		AreaPing:      areaPing,
-		MonthlyRent:   monthlyRent,
-		ManagementFee: managementFee,
-		DepositMonths: in.DepositMonths,
-		RentalMode:    RentalMode(in.RentalMode),
-		Status:        StatusVacant,
-		LandlordName:  in.LandlordName,
-		LandlordPhone: in.LandlordPhone,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}
-
-	if err := s.repo.Create(ctx, p); err != nil {
-		return nil, err
-	}
-
-	return p, nil
 }

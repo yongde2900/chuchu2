@@ -7,13 +7,9 @@ import (
 	"github.com/uptrace/bun/migrate"
 )
 
-// Migrations 探索 FS（也就是 db/ 目錄本身）底下所有 migration 檔案，回傳
-// bun 用來套用／回滾的 *migrate.Migrations。
-//
-// 必須以 migrate.WithMigrationsDirectory("db") 建立：這個目錄設定是
-// Migrator.CreateTxSQLMigrations（create_sql 子指令）產生新檔案時的落點，
-// 不設定的話新檔案會寫到呼叫端原始碼所在的目錄，而不是 db/。
-// MigrationsOption 只能傳給 NewMigrations，不能傳給 NewMigrator。
+// WithMigrationsDirectory("db") 是 CreateTxSQLMigrations 產生新檔案的落點，
+// 不設的話會寫到呼叫端原始碼所在的目錄。
+// 注意 MigrationsOption 只能給 NewMigrations，不能給 NewMigrator。
 func Migrations() (*migrate.Migrations, error) {
 	migrations := migrate.NewMigrations(migrate.WithMigrationsDirectory("db"))
 	if err := migrations.Discover(FS); err != nil {
@@ -22,13 +18,11 @@ func Migrations() (*migrate.Migrations, error) {
 	return migrations, nil
 }
 
-// NewMigrator 是 cmd/dbmigrate 與 test/main_test.go 共用的唯一
-// *migrate.Migrator 建構點，確保兩邊拿到的 Migrator 設定完全一致。
+// NewMigrator 是唯一的 Migrator 建構點，CLI 與測試共用，避免兩邊設定分岔。
 //
-// 必須傳入 migrate.WithMarkAppliedOnSuccess(true)：bun 的 Migrator.Migrate
-// 預設會在執行 migration 的 SQL「之前」就先把它標記為已套用，一旦 SQL
-// 執行失敗，bun_migrations 會留下一筆「已套用」的假記錄。
-// MigratorOption 只能傳給 NewMigrator，不能傳給 NewMigrations。
+// WithMarkAppliedOnSuccess(true) 不可省略：bun 預設在執行 migration SQL
+// 「之前」就標記為已套用，SQL 失敗時 bun_migrations 會留下假記錄。
+// 注意 MigratorOption 只能給 NewMigrator，不能給 NewMigrations。
 func NewMigrator(bunDB *bun.DB) (*migrate.Migrator, error) {
 	migrations, err := Migrations()
 	if err != nil {

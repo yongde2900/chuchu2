@@ -8,23 +8,25 @@ import (
 	"github.com/yongde2900/chuchu2/internal/apperr"
 )
 
-// CreateInput 是建立一筆物件所需的輸入。金額欄位（AreaPing、MonthlyRent、
-// ManagementFee）刻意以字串進來 —— 呼叫端（httpapi）從 JSON 字串解碼出來的
-// 原始字面值原封不動傳進來，由 Validate 負責解析成 decimal 並回報是哪個
-// 欄位出錯，而不是讓上層自己猜要怎麼把解析失敗的原因對應回欄位名稱。
 type CreateInput struct {
+	// 這五個欄位構成唯一索引 properties_address_key，重複建檔以它們判定。
 	City, District, StreetAddress, Floor, RoomNo string
-	Layout                                       string
-	AreaPing, MonthlyRent, ManagementFee         string
-	DepositMonths                                int
-	RentalMode                                   string
-	LandlordName, LandlordPhone                  string
+
+	Layout string
+
+	// 金額刻意以字串進來：由 Validate 解析成 decimal 並回報是哪個欄位出錯，
+	// 上層才不用自己把解析失敗的原因對應回欄位名稱。
+	AreaPing, MonthlyRent, ManagementFee string
+
+	DepositMonths int
+	RentalMode    string
+
+	LandlordName, LandlordPhone string
 }
 
-// Validate 檢查 in 的每一條驗證規則，回傳所有出錯欄位（不是遇到第一個就回）；
-// 沒有任何欄位出錯時回傳 nil。每一項 FieldError 的 Field 等於 JSON 欄位名
-// （snake_case，例如 street_address、monthly_rent），供 httpx.WriteError
-// 輸出到錯誤回應的 details 陣列。
+// 回傳**所有**出錯欄位，不是遇到第一個就回。
+// FieldError.Field 必須等於 JSON 欄位名（snake_case），它會直接出現在回應的
+// details 陣列裡。
 func (in CreateInput) Validate() []apperr.FieldError {
 	var errs []apperr.FieldError
 
@@ -66,8 +68,7 @@ func (in CreateInput) Validate() []apperr.FieldError {
 	return errs
 }
 
-// validatePositiveDecimal 驗證 s 是可解析的十進位數字且嚴格大於 0，
-// 不合法時回傳非空的錯誤原因；合法時回傳空字串。
+// 不合法時回傳非空的錯誤原因，合法時回傳空字串。
 func validatePositiveDecimal(s string) string {
 	d, err := decimal.NewFromString(s)
 	if err != nil {
@@ -79,8 +80,7 @@ func validatePositiveDecimal(s string) string {
 	return ""
 }
 
-// validateNonNegativeDecimal 驗證 s（若非空字串）是可解析的十進位數字且不為負數。
-// 空字串視為未提供，交由呼叫端決定預設值（目前為 0），不視為錯誤。
+// 空字串視為未提供，由呼叫端決定預設值，不視為錯誤。
 func validateNonNegativeDecimal(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return ""

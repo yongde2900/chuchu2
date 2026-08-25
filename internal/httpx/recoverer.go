@@ -9,11 +9,8 @@ import (
 	"github.com/yongde2900/chuchu2/internal/apperr"
 )
 
-// Recoverer 是攔截 panic 的 middleware。
-//
-// panic 值與完整堆疊只會寫進 error level 的結構化 log（連同 request_id），
-// 絕不會出現在 HTTP 回應 body 裡 —— 回應 body 一律是固定的 INTERNAL 500 訊息，
-// 避免把內部實作細節（堆疊、檔案路徑等）外洩給呼叫端。
+// Recoverer 攔截 panic。panic 值與堆疊只寫進 log，回應 body 一律是固定的
+// INTERNAL 500 訊息——堆疊、檔案路徑這類內部細節絕不外洩給呼叫端。
 func Recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()

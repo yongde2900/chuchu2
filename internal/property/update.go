@@ -11,16 +11,13 @@ import (
 	"github.com/yongde2900/chuchu2/internal/apperr"
 )
 
-// UpdateInput 是更新一筆物件所需的輸入。每個欄位都是指標：nil 代表「這個
-// 欄位不更動」，非 nil 代表「把這個欄位改成這個值」。
+// UpdateInput 每個欄位都是指標：nil 代表不更動該欄位。
 //
-// 刻意沒有 Status 欄位——狀態變更只能透過 ChangeStatus（並經過
-// CanTransition 的狀態機檢查），不能透過 PATCH 這個「全欄位覆寫」的入口繞過
-// 狀態機。這是型別層面的強制：即使 httpapi 把整包 request body 解碼進來，
-// UpdateInput 也沒有地方可以放 status，PATCH 永遠不可能變更狀態。
+// **刻意沒有 Status 欄位**——狀態變更只能走 ChangeStatus 並通過 CanTransition。
+// 這是型別層面的強制：即使整包 request body 解碼進來，也沒有地方放 status，
+// PATCH 永遠繞不過狀態機。
 //
-// 金額欄位（MonthlyRent、ManagementFee）沿用 CreateInput 的慣例，以字串進來，
-// 由 Validate 負責解析並回報是哪個欄位出錯。
+// 金額以字串進來的理由同 CreateInput。
 type UpdateInput struct {
 	MonthlyRent   *string
 	ManagementFee *string
@@ -30,17 +27,9 @@ type UpdateInput struct {
 	LandlordPhone *string
 }
 
-// Validate 檢查 in 中每個非 nil 欄位是否合法，回傳所有出錯欄位（不是遇到第
-// 一個就回）；沒有任何欄位出錯時回傳 nil。nil 欄位一律視為「未提供」，不會
-// 被判定為錯誤。
-//
-// 驗證規則沿用 CreateInput 的語意：
-//   - monthly_rent 若提供，必須可解析且嚴格大於 0。
-//   - management_fee 若提供，必須可解析且不可為負數；空字串沿用 Create 的
-//     語意視為「未提供」，不視為錯誤。
-//   - deposit_months 若提供，不可為負數。
-//   - layout 若提供，必須是四個合法值之一。
-//   - landlord_name、landlord_phone 沒有格式限制。
+// 回傳**所有**出錯欄位，不是遇到第一個就回。nil 欄位視為未提供，不判定為錯誤。
+// 驗證規則沿用 CreateInput：租金須大於 0、管理費不可為負（空字串視為未提供）、
+// 押金月數不可為負、格局須是合法列舉值。
 func (in UpdateInput) Validate() []apperr.FieldError {
 	var errs []apperr.FieldError
 
@@ -70,13 +59,7 @@ func (in UpdateInput) Validate() []apperr.FieldError {
 	return errs
 }
 
-// Update 驗證 in，把非 nil 的欄位套用到 id 對應的物件上並持久化，回傳更新後
-// 的完整物件。
-//
-// 驗證失敗時回傳 apperr.CodeValidationFailed（帶完整的 Details）；
-// 查無該 id 時，錯誤原封不動往上傳（已經是 apperr.CodePropertyNotFound，由
-// GetByID 回報）。任何成功的更新都會把 UpdatedAt 設成 time.Now()，確保嚴格
-// 晚於原本的 CreatedAt／UpdatedAt。
+// 成功的更新一律把 UpdatedAt 設成 time.Now()，確保嚴格晚於原本的時間戳。
 func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (*Property, error) {
 	if errs := in.Validate(); len(errs) > 0 {
 		return nil, apperr.Validation(errs...)
@@ -88,8 +71,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (*Pr
 	}
 
 	if in.MonthlyRent != nil {
-		// Validate 已確保這個字串可解析且為正數，這裡的錯誤必定為 nil，
-		// 但仍檢查以避免未來 Validate 規則變動時默默吞掉解析失敗。
+		// Validate 已確保可解析，這裡必定為 nil；仍檢查以免日後規則變動時默默吞掉錯誤。
 		d, err := decimal.NewFromString(*in.MonthlyRent)
 		if err != nil {
 			return nil, apperr.Wrap(apperr.CodeValidationFailed, "monthly_rent 解析失敗", err)
@@ -135,13 +117,9 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateInput) (*Pr
 	return p, nil
 }
 
-// ChangeStatus 把 id 對應的物件狀態轉換到 target，回傳轉換後的完整物件。
-//
-// 轉換是否合法由 CanTransition（狀態機的唯一權威來源）判斷。轉換非法時回傳
-// apperr.CodeInvalidStatusTransition（HTTP 409），且刻意在呼叫 s.repo.Update
-// 之前就回傳——先 GetByID 取得目前狀態、再檢查 CanTransition，不合法就直接
-// 回錯誤，不會碰 Repository 的 Update，確保拒絕發生在寫入之前、資料庫裡的
-// 狀態完全不受影響。
+// 合法性由 CanTransition 判斷，且**拒絕必須發生在寫入之前**：
+// 先 GetByID 取得目前狀態、檢查通過才碰 Repository.Update，
+// 確保非法轉換完全不影響資料庫。
 func (s *Service) ChangeStatus(ctx context.Context, id uuid.UUID, target Status) (*Property, error) {
 	p, err := s.repo.GetByID(ctx, id)
 	if err != nil {

@@ -10,17 +10,16 @@ import (
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 )
 
-// containerStartTimeout 涵蓋冷機器第一次拉 image 的時間，刻意設得寬鬆。
+// 涵蓋冷機器第一次拉 image 的時間，刻意寬鬆。
 const containerStartTimeout = 5 * time.Minute
 
-// containerStopTimeout 是主動停止容器的上限，斷線情境需要它盡快、確定地完成。
+// 斷線情境需要它盡快、確定地完成。
 const containerStopTimeout = 30 * time.Second
 
-// StartPostgres 以 testcontainers 啟一個用完即丟的 Postgres 測試容器，
-// 回傳可直接連線的 DSN，以及一個能主動、立即停止容器的 stop 函式。
+// StartPostgres 啟一個用完即丟的 Postgres 容器。
 //
-// stop 用 sync.Once 包住，重複呼叫是安全的：斷線情境會先手動呼叫 stop，
-// 之後 t.Cleanup 註冊的收尾又會再呼叫一次。
+// stop 用 sync.Once 包住，重複呼叫安全：斷線情境會先手動呼叫，
+// 之後 t.Cleanup 的收尾又會再呼叫一次。
 func StartPostgres(t *testing.T) (dsn string, stop func()) {
 	t.Helper()
 
@@ -57,10 +56,7 @@ func StartPostgres(t *testing.T) (dsn string, stop func()) {
 	return connStr, stopFn
 }
 
-// StartRedis 以 testcontainers 啟一個用完即丟的 Redis 測試容器，
-// 回傳可直接連線的 addr（host:port），以及一個能主動、立即停止容器的 stop 函式。
-//
-// stop 用 sync.Once 包住，重複呼叫是安全的，理由同 StartPostgres。
+// StartRedis 啟一個用完即丟的 Redis 容器。stop 可重複呼叫，理由同 StartPostgres。
 func StartRedis(t *testing.T) (addr string, stop func()) {
 	t.Helper()
 

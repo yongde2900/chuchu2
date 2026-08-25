@@ -1,13 +1,8 @@
 // 本檔對應 BDD scenario（@infra @error）：
 // 「未預期的 panic 被攔截為 500 且不外洩堆疊」。
 //
-// 這個測試不需要 Docker、不需要任何外部服務：它同行程組出完整的 chi router
-// （含 RequestID → access log → Recoverer 這條 middleware chain），
-// 用 httptest.NewServer 起一個真正的 HTTP server 來驗證行為，
-// 並直接檢查寫進自訂 buffer 的結構化 log。
-//
-// 注意：testsupport.StartAPI（以子行程跑起整支 binary）是 Task 3 的產出，
-// 這裡刻意不用它、也不建立它。
+// 這個測試不需要 Docker、不需要任何外部服務：它只組 router（不接 feature
+// 的 handler，因此不需要資料庫），用 httptest.NewServer 驗證 panic 路徑。
 package test
 
 import (

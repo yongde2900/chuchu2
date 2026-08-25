@@ -8,10 +8,7 @@ import (
 	"time"
 )
 
-// Run 在 addr 上啟動 h，並在 ctx 被取消時以 shutdownTimeout 為上限做優雅關閉。
-//
-// 正常的優雅關閉（ctx 取消後在時限內關完）回傳 nil；server 啟動失敗
-// （例如 port 已被占用）或關閉逾時則回傳對應的 error。
+// ctx 取消後在時限內關完回傳 nil；啟動失敗（例如 port 被占用）或關閉逾時回傳 error。
 func Run(ctx context.Context, addr string, h http.Handler, shutdownTimeout time.Duration, logger *slog.Logger) error {
 	if logger == nil {
 		logger = slog.Default()

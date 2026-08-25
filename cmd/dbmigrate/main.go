@@ -4,7 +4,7 @@
 //
 //	go run ./cmd/dbmigrate <subcommand> --config=<name> [args...]
 //
-// 子指令（只有這六個，up／down 已完全廢除且不保留別名）：
+// 子指令（只有這六個，up／down 已廢除且不保留別名）：
 //
 //	init        建立 bun_migrations／bun_migration_locks 兩張記錄用資料表
 //	migrate     套用所有尚未套用的 migration
@@ -13,8 +13,8 @@
 //	unlock      釋放卡住的 migration lock（不會再包一層 Lock）
 //	create_sql  以 <name> 產生一對新的 .tx.up.sql／.tx.down.sql 檔案
 //
-// 每個子指令都要求 --config，載入方式與 cmd/api 相同（config.Load），
-// 讓測試能用 CHUCHU_ 前綴環境變數把它指向 testcontainers 起的臨時容器。
+// 每個子指令都要求 --config，讓測試能用 CHUCHU_ 前綴環境變數把它指向
+// testcontainers 起的臨時容器。
 package main
 
 import (
@@ -33,18 +33,17 @@ import (
 	"github.com/yongde2900/chuchu2/internal/platform/postgres"
 )
 
-// subcommands 是唯一合法的六個子指令，依用法說明中的順序列出。
 var subcommands = []string{"init", "migrate", "rollback", "status", "unlock", "create_sql"}
 
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
 
-// run 是 main 的實際邏輯，回傳 process exit code，方便測試與維持 main 精簡。
+// 邏輯收在 run 裡回傳 exit code，讓 main 只剩 os.Exit——exit code 才可測，
+// 而且 main 的 os.Exit 會跳過 defer。
 //
-// 順序刻意先判斷子指令是否合法，再處理 flag：否則像
-// `frobnicate --config=test` 這種輸入，會先被 flag 解析吃掉 --config，
-// 導致「未知子指令」永遠測不到。
+// 刻意先判斷子指令合法性再處理 flag：否則 `frobnicate --config=test`
+// 會先被 flag 解析吃掉 --config，「未知子指令」這條路徑永遠測不到。
 func run(args []string) int {
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, usage())
@@ -110,7 +109,6 @@ func run(args []string) int {
 	}
 }
 
-// usage 回傳完整用法說明，含全部六個子指令。
 func usage() string {
 	return fmt.Sprintf(
 		"用法: dbmigrate <%s> --config=<name> [args...]",
@@ -127,7 +125,7 @@ func isValidSubcommand(name string) bool {
 	return false
 }
 
-// runInit 建立 bun_migrations／bun_migration_locks 兩張記錄用資料表；可重入。
+// 建立 bun_migrations／bun_migration_locks 兩張記錄用資料表；可重入。
 func runInit(ctx context.Context, migrator *migrate.Migrator) int {
 	if err := migrator.Init(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "init 失敗: %v\n", err)
@@ -137,11 +135,9 @@ func runInit(ctx context.Context, migrator *migrate.Migrator) int {
 	return 0
 }
 
-// runMigrate 套用所有尚未套用的 migration。沒有新 migration 時視為成功，
-// 並在 stdout 印出固定字串 "no new migrations" 供測試斷言。
+// 沒有新 migration 時視為成功。輸出含固定字串 "no new migrations" 供測試斷言。
 //
-// 執行前先 Lock、defer Unlock：Lock 失敗時直接回傳，不執行 defer Unlock，
-// 避免對一把本來就不屬於自己的 lock 做多餘的釋放。
+// Lock 失敗時直接回傳、不註冊 defer Unlock，避免釋放一把不屬於自己的 lock。
 func runMigrate(ctx context.Context, migrator *migrate.Migrator) int {
 	if err := migrator.Lock(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "取得 migration lock 失敗: %v\n", err)
@@ -166,8 +162,8 @@ func runMigrate(ctx context.Context, migrator *migrate.Migrator) int {
 	return 0
 }
 
-// runRollback 回滾最後一次 migrate 套用的整組 migration。沒有可回滾的
-// group 時視為成功，並在 stdout 印出固定字串 "nothing to rollback"。
+// 回滾最後一個 group（不是全部，這是 bun 的語意）。沒有可回滾的 group 時
+// 視為成功，輸出含固定字串 "nothing to rollback" 供測試斷言。
 func runRollback(ctx context.Context, migrator *migrate.Migrator) int {
 	if err := migrator.Lock(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "取得 migration lock 失敗: %v\n", err)
@@ -192,7 +188,6 @@ func runRollback(ctx context.Context, migrator *migrate.Migrator) int {
 	return 0
 }
 
-// runStatus 列出所有 migration（不論已套用或待套用）及其狀態。
 func runStatus(ctx context.Context, migrator *migrate.Migrator) int {
 	migrations, err := migrator.MigrationsWithStatus(ctx)
 	if err != nil {
@@ -209,8 +204,8 @@ func runStatus(ctx context.Context, migrator *migrate.Migrator) int {
 	return 0
 }
 
-// runUnlock 釋放卡住的 migration lock。這裡不再包一層 Lock
-// ——unlock 本來就是給「Lock 拿到了、但流程異常沒能走到 Unlock」時手動解卡用的。
+// 刻意不包一層 Lock——unlock 本來就是給「拿到 Lock 但流程異常沒走到 Unlock」
+// 時手動解卡用的。
 func runUnlock(ctx context.Context, migrator *migrate.Migrator) int {
 	if err := migrator.Unlock(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "unlock 失敗: %v\n", err)
@@ -220,10 +215,8 @@ func runUnlock(ctx context.Context, migrator *migrate.Migrator) int {
 	return 0
 }
 
-// runCreateSQL 以 args[0] 為名稱，產生一對新的 .tx.up.sql／.tx.down.sql
-// 檔案。一律走 CreateTxSQLMigrations（而非 CreateSQLMigrations），讓新產生
-// 的 migration 預設就有交易保護，呼應本專案「.up.sql 必須是 .tx.up.sql」
-// 的既有慣例。
+// 一律走 CreateTxSQLMigrations 而非 CreateSQLMigrations：只有 .tx. 檔名
+// bun 才會包交易，本專案所有 migration 都必須有交易保護。
 func runCreateSQL(ctx context.Context, migrator *migrate.Migrator, args []string) int {
 	if len(args) < 1 {
 		fmt.Fprintln(os.Stderr, "create_sql 需要一個 migration 名稱參數，例如: create_sql add_index")

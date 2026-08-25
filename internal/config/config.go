@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config 是服務啟動所需的完整設定。
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Postgres PostgresConfig `mapstructure:"postgres"`
@@ -20,27 +19,23 @@ type Config struct {
 	Log      LogConfig      `mapstructure:"log"`
 }
 
-// ServerConfig 是 HTTP server 相關設定。
 type ServerConfig struct {
 	Port            int           `mapstructure:"port"`
 	Debug           bool          `mapstructure:"debug"` // 為 true 時才掛載 /debug/panic
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 }
 
-// PostgresConfig 是 Postgres 連線設定。
 type PostgresConfig struct {
 	DSN          string `mapstructure:"dsn"`
 	MaxOpenConns int    `mapstructure:"max_open_conns"`
 }
 
-// RedisConfig 是 Redis 連線設定。
 type RedisConfig struct {
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`
 }
 
-// LogConfig 是結構化日誌設定。
 type LogConfig struct {
 	Level string `mapstructure:"level"`
 }
@@ -50,23 +45,21 @@ type MissingKeyError struct {
 	Key string
 }
 
-// Error 回傳的訊息中一定包含缺少的 key 全名，供啟動失敗時輸出到 stderr。
+// 訊息一定包含缺少的 key 全名，供啟動失敗時輸出到 stderr。
 func (e *MissingKeyError) Error() string {
 	return fmt.Sprintf("設定缺少必要欄位 %q：請在 config yaml 或以 CHUCHU_ 開頭的環境變數提供這個值", e.Key)
 }
 
-// requiredKeys 是啟動時必須存在（來自 yaml 或 CHUCHU_ 環境變數皆可）的 key 清單。
+// 啟動時必須存在的 key，來自 yaml 或 CHUCHU_ 環境變數皆可。
 var requiredKeys = []string{
 	"server.port",
 	"postgres.dsn",
 	"redis.addr",
 }
 
-// knownKeys 是所有可被 CHUCHU_ 環境變數覆寫的 key。
-//
-// 逐一明確呼叫 BindEnv 是刻意的：viper 的 AutomaticEnv 對於「只存在於環境變數、
-// 不存在於 yaml」的 key，IsSet/Unmarshal 有時抓不到，必須明確 BindEnv 才能確保
-// 環境變數覆寫（例如 testcontainers 產生的隨機 DSN）真的生效。
+// 逐一明確 BindEnv 是刻意的：viper 的 AutomaticEnv 對「只存在於環境變數、
+// 不存在於 yaml」的 key，IsSet/Unmarshal 有時抓不到，必須明確 BindEnv
+// 才能確保環境變數覆寫（例如 testcontainers 的隨機 DSN）真的生效。
 var knownKeys = []string{
 	"server.port",
 	"server.debug",
@@ -79,9 +72,7 @@ var knownKeys = []string{
 	"log.level",
 }
 
-// Load 讀取 config/<name>.yaml，套用 CHUCHU_ 前綴的環境變數覆寫（"." 換成 "_"），
-// 並檢查必要 key（server.port、postgres.dsn、redis.addr）。
-// 缺 key 時回傳 *MissingKeyError，其 Error() 訊息中包含缺少的 key 全名。
+// 缺少必要 key 時回傳 *MissingKeyError。
 func Load(name string) (*Config, error) {
 	v := viper.New()
 	v.SetConfigName(name)

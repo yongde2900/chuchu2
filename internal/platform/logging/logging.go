@@ -7,9 +7,8 @@ import (
 	"strings"
 )
 
-// New 依 level 字串建立一個輸出 JSON 格式的 *slog.Logger，寫入 w。
-// level 可接受 "debug"、"info"、"warn"、"error"（不分大小寫）；
-// 空字串或無法解析的值一律退回 info，不會 panic。
+// level 接受 debug／info／warn／error（不分大小寫）；
+// 空字串或無法辨識的值一律退回 info，不會 panic。
 func New(level string, w io.Writer) *slog.Logger {
 	handler := slog.NewJSONHandler(w, &slog.HandlerOptions{
 		Level: parseLevel(level),
@@ -17,7 +16,6 @@ func New(level string, w io.Writer) *slog.Logger {
 	return slog.New(handler)
 }
 
-// parseLevel 將設定檔中的 log level 字串轉成 slog.Level。
 func parseLevel(level string) slog.Level {
 	switch strings.ToLower(strings.TrimSpace(level)) {
 	case "debug":

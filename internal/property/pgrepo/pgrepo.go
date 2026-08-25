@@ -23,8 +23,7 @@ import (
 // （https://www.postgresql.org/docs/current/errcodes-appendix.html）。
 const pgUniqueViolation = "23505"
 
-// propertyModel 對應 properties 資料表，欄位需與
-// db/20260819120000_create_properties.up.sql 保持一致。
+// 欄位需與 db/ 底下的 create_properties migration 保持一致。
 type propertyModel struct {
 	bun.BaseModel `bun:"table:properties"`
 
@@ -47,24 +46,18 @@ type propertyModel struct {
 	UpdatedAt     time.Time       `bun:"updated_at"`
 }
 
-// PropertyRepository 是 property.Repository 的 Postgres 實作。
 type PropertyRepository struct {
 	db *bun.DB
 }
 
-// New 用給定的 db 建立 PropertyRepository。
 func New(db *bun.DB) *PropertyRepository {
 	return &PropertyRepository{db: db}
 }
 
-// 編譯期斷言：PropertyRepository 滿足 property.Repository。
 var _ property.Repository = (*PropertyRepository)(nil)
 
-// Create 新增一筆物件。
-//
-// 刻意不先 SELECT 再 INSERT 判斷重複（有 race）：直接 INSERT，讓
-// properties_address_key 這個唯一索引把關，命中時把 Postgres SQLSTATE 23505
-// 轉成 apperr.CodePropertyDuplicate。
+// 刻意不先 SELECT 再 INSERT 判斷重複（那有 race）：直接 INSERT，
+// 讓 properties_address_key 唯一索引把關，命中時轉成 CodePropertyDuplicate。
 func (r *PropertyRepository) Create(ctx context.Context, p *property.Property) error {
 	model := toModel(p)
 
@@ -78,7 +71,6 @@ func (r *PropertyRepository) Create(ctx context.Context, p *property.Property) e
 	return nil
 }
 
-// toModel 把領域層的 *property.Property 轉成 bun 用的 propertyModel。
 func toModel(p *property.Property) *propertyModel {
 	return &propertyModel{
 		ID:            p.ID,
@@ -101,7 +93,6 @@ func toModel(p *property.Property) *propertyModel {
 	}
 }
 
-// toDomain 把 propertyModel 轉回領域層的 *property.Property（toModel 的反向轉換）。
 func toDomain(m *propertyModel) *property.Property {
 	return &property.Property{
 		ID:            m.ID,
@@ -124,8 +115,7 @@ func toDomain(m *propertyModel) *property.Property {
 	}
 }
 
-// GetByID 依 id 查詢單一物件；查無資料時把 bun 的 sql.ErrNoRows 轉譯成
-// apperr.CodePropertyNotFound。
+// 查無資料時把 sql.ErrNoRows 轉譯成 apperr.CodePropertyNotFound。
 func (r *PropertyRepository) GetByID(ctx context.Context, id uuid.UUID) (*property.Property, error) {
 	model := new(propertyModel)
 
@@ -139,10 +129,8 @@ func (r *PropertyRepository) GetByID(ctx context.Context, id uuid.UUID) (*proper
 	return toDomain(model), nil
 }
 
-// Update 以 p.ID 為鍵，把 p 整筆（除 id 外的所有欄位）覆寫回 properties 資料
-// 表。呼叫端（Service.Update／Service.ChangeStatus）已經先 GetByID 確認資料
-// 存在，這裡若 RowsAffected 為 0（理論上不會發生，除非資料在兩次呼叫間被
-// 刪除），仍轉譯成 apperr.CodePropertyNotFound，不讓呼叫端誤判為成功。
+// RowsAffected 為 0 理論上不會發生（呼叫端已先 GetByID 確認存在），
+// 但仍轉成 CodePropertyNotFound，不讓「資料在兩次呼叫間被刪除」被誤判為成功。
 func (r *PropertyRepository) Update(ctx context.Context, p *property.Property) error {
 	model := toModel(p)
 
@@ -162,9 +150,8 @@ func (r *PropertyRepository) Update(ctx context.Context, p *property.Property) e
 	return nil
 }
 
-// List 依 f 分頁列出物件，固定以 created_at 由新到舊排序、以 id 為次要排序鍵
-// （避免同一 created_at 時分頁跳號）；Total 是套用篩選後、分頁前的總筆數，
-// 用 ScanAndCount 在同一次查詢中取得（不受 Limit／Offset 影響）。
+// 以 created_at 由新到舊排序、id 為次要鍵，避免同一 created_at 時分頁跳號。
+// Total 用 ScanAndCount 在同一次查詢取得，不受 Limit／Offset 影響。
 func (r *PropertyRepository) List(ctx context.Context, f property.ListFilter) (property.ListResult, error) {
 	var models []*propertyModel
 

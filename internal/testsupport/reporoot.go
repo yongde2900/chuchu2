@@ -7,8 +7,7 @@ import (
 	"testing"
 )
 
-// RepoRoot 回傳 repo 根目錄的絕對路徑（以 go.mod 所在位置為準），
-// 讓整合測試能以 repo 根目錄為工作目錄執行 `go run ./cmd/api` 之類的指令。
+// RepoRoot 以 go.mod 所在位置為準，讓整合測試能以 repo 根目錄當工作目錄。
 func RepoRoot(t *testing.T) string {
 	t.Helper()
 

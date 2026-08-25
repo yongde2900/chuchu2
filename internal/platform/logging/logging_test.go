@@ -9,7 +9,7 @@ import (
 
 func TestNew_LevelParsing(t *testing.T) {
 	tests := []struct {
-		level    string
+		level     string
 		wantDebug bool
 		wantInfo  bool
 	}{
@@ -17,8 +17,8 @@ func TestNew_LevelParsing(t *testing.T) {
 		{"info", false, true},
 		{"warn", false, false},
 		{"error", false, false},
-		{"", false, true},        // 未指定時預設為 info
-		{"bogus", false, true},   // 無法解析時退回 info，不能 panic
+		{"", false, true},      // 未指定時預設為 info
+		{"bogus", false, true}, // 無法解析時退回 info，不能 panic
 	}
 
 	for _, tt := range tests {

@@ -48,4 +48,4 @@ PLAN-001 的範圍內「委託契約」這個 aggregate 根本還不存在，為
 沒有房東主檔、沒有外鍵）；本輪不做租約與帳務，物件狀態由人工呼叫 status endpoint 變更，
 尚未由任何租約事件驅動。
 
-相關：[[property-status-machine]]、[[exported-interfaces-property-service]]
+相關：[[property-status-machine]]

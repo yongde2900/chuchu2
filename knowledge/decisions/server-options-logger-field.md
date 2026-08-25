@@ -43,4 +43,4 @@ type Options struct {
 若真的必須改簽章，那是 `hars-revise` 的工作（修訂已核准的計畫），
 不是執行期可以自行決定的事。
 
-相關：[[property-service-layering]]、[[exported-interfaces-property-service]]
+相關：[[property-service-layering]]

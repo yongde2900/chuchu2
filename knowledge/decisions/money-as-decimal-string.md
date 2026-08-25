@@ -40,4 +40,4 @@ BDD 斷言的是**精確的字串形式**（`"25000.50"`、`"27000.00"`），
 驗證方式：建檔後直接查 DB 確認 `monthly_rent = 25000.50` 為 true（精確相等），
 不要只信 HTTP 回應。
 
-相關：[[exported-interfaces-property-service]]、[[openapi-contract-test]]
+相關：[[spec-first-codegen-replaces-contract-test]]

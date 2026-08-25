@@ -17,23 +17,21 @@ migration 檔名的解析與排序。
 
 **第二層：整合測試一律放 repo 根目錄的 `test/`，`package test`**，一個 feature 面向一個檔：
 
-```
-test/startup_test.go         啟動與設定
-test/health_test.go          健康檢查與斷線
-test/migrate_test.go         migration up/down 往返
-test/panic_test.go           panic 攔截
-test/property_create_test.go
-test/property_query_test.go
-test/property_update_test.go
-test/contract_test.go        OpenAPI 契約驗證
-```
+**全部 BDD scenario 的驗收證據都在這一層**，打**真實 HTTP 請求**驗證，不直接呼叫內部函式。
 
-**全部 BDD scenario 的驗收證據都在這一層**，透過 `testsupport.StartAPI` 打**真實 HTTP 請求**驗證，
-不直接呼叫內部函式。
+### 整合測試的兩種起法
+
+- **預設：行程內**（`startInProcessAPI` → `httptest.NewServer(app.NewHandler(...))`）。
+  中斷點有效、快，是絕大多數測試該用的。
+- **例外：子行程**（`testsupport.StartAPI` → `go run ./cmd/api`）。
+  只給**行程層面的行為**用：服務會不會退出、設定壞掉時的 exit code 與 stderr。
+  目前只有 `test/startup_test.go` 需要。
+
+理由見 [[in-process-integration-tests]]。
 
 ## 為什麼這樣切
 
-- 整合測試跑的是**整支 binary**，不屬於任何單一套件。
+- 整合測試驗的是**組裝起來的系統**，不屬於任何單一套件。
 - 可以用 `go test -race -count=1 ./test/...` 一條指令重跑整個整合層。
 - `internal/` 底下不會有任何套件 import testcontainers，分層邊界更乾淨。
 
@@ -43,15 +41,16 @@ test/contract_test.go        OpenAPI 契約驗證
 - 每個整合測試以 **`TRUNCATE properties`** 取得乾淨狀態，不重建容器
   （例外見 [[testcontainers-shared-vs-dedicated]]）。
 
-## 一個實務上的張力
+## 這條約定的意圖
 
-規則說「所有 BDD 驗收證據透過 `StartAPI` 驅動」，但 `StartAPI` 本身是 Task 3 的產出，
-而 panic 攔截的 scenario 屬於 Task 2（相依順序上更早）。
-當時的處置是：仍把測試放在 `test/panic_test.go`，但改以**同行程** `httptest.NewServer`
-套用真實 router 與完整 middleware chain 驅動 —— 五條 `Then` 全部照驗，
-而且 log／request_id 關聯在同行程下反而比對子行程 stderr 更容易斷言，也不需要 Docker。
+**「不要用 mock 假裝驗過端到端」才是重點，「開子行程」從來不是。**
 
-教訓：這條約定的**意圖**是「不要用 mock 假裝驗過端到端」，不是「一定要開子行程」。
-遇到相依順序衝突時，保留意圖、調整手段，並把處置寫進 plan 的 Iteration Log。
+這件事最早是在 PLAN-001 被逼出來的：panic 攔截的 scenario 排在 `StartAPI` 出現之前，
+只好改用同行程 `httptest.NewServer` 套真實 router 驅動 —— 五條 `Then` 全部照驗，
+而且 log／request_id 的關聯在同行程下比對子行程 stderr 更容易斷言。
 
-相關：[[testcontainers-shared-vs-dedicated]]、[[go-run-orphan-process-group]]
+後來證明那個「權宜之計」才是常態：2026-08-26 把組裝抽到 `internal/app` 之後，
+整合測試預設就是行程內起服務，子行程只留給真正需要它的行程行為測試。
+
+相關：[[testcontainers-shared-vs-dedicated]]、[[go-run-orphan-process-group]]、
+[[in-process-integration-tests]]

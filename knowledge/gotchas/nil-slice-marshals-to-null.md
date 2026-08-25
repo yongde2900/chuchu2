@@ -47,4 +47,4 @@ PLAN-001 驗收時就是以原始 bytes 確認回應為 `{"items":[],"total":0}`
 任何「回傳集合」的 endpoint 都適用這一條。review 列表型 API 時，
 養成習慣直接看 wire 上的位元組，而不是看反序列化後的 Go 值。
 
-相關：[[openapi-contract-test]]
+相關：[[spec-first-codegen-replaces-contract-test]]

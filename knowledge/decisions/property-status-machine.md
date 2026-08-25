@@ -50,4 +50,4 @@ RENOVATING→VACANT、RENOVATING→DELISTED、DELISTED→VACANT。
 **十六個子測試通過只證明測試與實作彼此同意** —— 若兩者共享同一個錯誤信念，
 套件是綠的而狀態機是錯的。review 時必須拿測試的**期望值**去對照權威表，而不是對照程式碼。
 
-相關：[[rental-mode-flattened-on-property]]、[[exported-interfaces-property-service]]
+相關：[[rental-mode-flattened-on-property]]

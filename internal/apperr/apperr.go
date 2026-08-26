@@ -12,6 +12,7 @@ const (
 	CodePropertyNotFound        Code = "PROPERTY_NOT_FOUND"
 	CodePropertyDuplicate       Code = "PROPERTY_DUPLICATE"
 	CodeInvalidStatusTransition Code = "PROPERTY_INVALID_STATUS_TRANSITION"
+	CodeLineSignatureInvalid    Code = "LINE_SIGNATURE_INVALID"
 	// 未預期錯誤的降級目標，panic 攔截後也會落到這裡。
 	CodeInternal Code = "INTERNAL"
 )
@@ -69,6 +70,7 @@ var (
 	NotFound                = &Error{Code: CodePropertyNotFound, Message: "找不到指定的物件"}
 	Duplicate               = &Error{Code: CodePropertyDuplicate, Message: "相同門牌的物件已存在"}
 	InvalidStatusTransition = &Error{Code: CodeInvalidStatusTransition, Message: "不允許的狀態轉換"}
+	LineSignatureInvalid    = &Error{Code: CodeLineSignatureInvalid, Message: "LINE 簽章驗證失敗"}
 	Internal                = &Error{Code: CodeInternal, Message: "internal server error"}
 )
 
@@ -127,6 +129,8 @@ func HTTPStatus(code Code) int {
 		return http.StatusConflict
 	case CodeInvalidStatusTransition:
 		return http.StatusConflict
+	case CodeLineSignatureInvalid:
+		return http.StatusUnauthorized
 	case CodeInternal:
 		return http.StatusInternalServerError
 	default:

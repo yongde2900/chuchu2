@@ -14,3 +14,6 @@ redis:
 
 log:
   level: "info"
+
+line:
+  channel_secret: "test-channel-secret"

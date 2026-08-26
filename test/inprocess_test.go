@@ -22,6 +22,11 @@ import (
 	"github.com/yongde2900/chuchu2/internal/platform/redisclient"
 )
 
+// lineChannelSecret 定義在 line_webhook_test.go（同 package test，這裡直接沿用）——
+// 必須與 config/test.yaml 的 line.channel_secret 一致：子行程啟動的測試
+// （testsupport.StartAPI）讀 yaml，行程內啟動的測試用這個常數，兩邊對不上會讓
+// webhook 測試全部 401，且不容易看出原因。
+
 // startInProcessAPI 在同一個行程內起一個真正的 HTTP server，回傳 baseURL 與
 // 取得 server 端 log 的函式（供斷言失敗時輸出，對應 StartAPI 的 output）。
 //
@@ -45,10 +50,11 @@ func startInProcessAPI(t *testing.T, dsn, redisAddr string) (baseURL string, out
 
 	logs := &syncBuffer{}
 	handler := app.NewHandler(app.Deps{
-		DB:     db,
-		Redis:  redisClient,
-		Logger: logging.New("info", logs),
-		Debug:  true,
+		DB:                db,
+		Redis:             redisClient,
+		Logger:            logging.New("info", logs),
+		Debug:             true,
+		LineChannelSecret: lineChannelSecret,
 	})
 
 	srv := httptest.NewServer(handler)

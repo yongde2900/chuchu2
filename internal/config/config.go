@@ -17,6 +17,7 @@ type Config struct {
 	Postgres PostgresConfig `mapstructure:"postgres"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	Log      LogConfig      `mapstructure:"log"`
+	Line     LineConfig     `mapstructure:"line"`
 }
 
 type ServerConfig struct {
@@ -40,6 +41,10 @@ type LogConfig struct {
 	Level string `mapstructure:"level"`
 }
 
+type LineConfig struct {
+	ChannelSecret string `mapstructure:"channel_secret"`
+}
+
 // MissingKeyError 表示設定檔（含環境變數覆寫後）缺少一個必要的設定 key。
 type MissingKeyError struct {
 	Key string
@@ -55,6 +60,7 @@ var requiredKeys = []string{
 	"server.port",
 	"postgres.dsn",
 	"redis.addr",
+	"line.channel_secret",
 }
 
 // 逐一明確 BindEnv 是刻意的：viper 的 AutomaticEnv 對「只存在於環境變數、
@@ -70,6 +76,7 @@ var knownKeys = []string{
 	"redis.password",
 	"redis.db",
 	"log.level",
+	"line.channel_secret",
 }
 
 // 缺少必要 key 時回傳 *MissingKeyError。

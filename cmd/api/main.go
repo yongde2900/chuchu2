@@ -70,10 +70,11 @@ func run() int {
 	}
 
 	router := app.NewHandler(app.Deps{
-		DB:     db,
-		Redis:  redisClient,
-		Logger: logger,
-		Debug:  cfg.Server.Debug,
+		DB:                db,
+		Redis:             redisClient,
+		Logger:            logger,
+		Debug:             cfg.Server.Debug,
+		LineChannelSecret: cfg.Line.ChannelSecret,
 	})
 
 	addr := net.JoinHostPort("", strconv.Itoa(cfg.Server.Port))

@@ -54,6 +54,8 @@ redis:
   db: 0
 log:
   level: "info"
+line:
+  channel_secret: "test-channel-secret"
 `)
 	chdir(t, dir)
 
@@ -81,6 +83,9 @@ log:
 	}
 	if cfg.Log.Level != "info" {
 		t.Errorf("Log.Level = %q, want info", cfg.Log.Level)
+	}
+	if cfg.Line.ChannelSecret != "test-channel-secret" {
+		t.Errorf("Line.ChannelSecret = %q, want test-channel-secret", cfg.Line.ChannelSecret)
 	}
 }
 
@@ -120,6 +125,8 @@ postgres:
   dsn: "postgres://placeholder"
 redis:
   addr: "localhost:6379"
+line:
+  channel_secret: "test-channel-secret"
 `)
 	chdir(t, dir)
 
@@ -139,7 +146,8 @@ redis:
 }
 
 func TestLoad_EnvOverrideSatisfiesMissingKey(t *testing.T) {
-	// postgres.dsn 完全不在 yaml 裡，但環境變數有提供 —— Load 不應該報 MissingKeyError。
+	// postgres.dsn 與 line.channel_secret 完全不在 yaml 裡，但環境變數都有提供
+	// —— Load 不應該報 MissingKeyError。
 	dir := writeTempConfig(t, "broken", `
 server:
   port: 8080
@@ -149,6 +157,7 @@ redis:
 	chdir(t, dir)
 
 	t.Setenv("CHUCHU_POSTGRES_DSN", "postgres://from-env@host:5432/db?sslmode=disable")
+	t.Setenv("CHUCHU_LINE_CHANNEL_SECRET", "secret-from-env")
 
 	cfg, err := Load("broken")
 	if err != nil {
@@ -156,5 +165,38 @@ redis:
 	}
 	if cfg.Postgres.DSN != "postgres://from-env@host:5432/db?sslmode=disable" {
 		t.Errorf("Postgres.DSN = %q, env override not applied", cfg.Postgres.DSN)
+	}
+	if cfg.Line.ChannelSecret != "secret-from-env" {
+		t.Errorf("Line.ChannelSecret = %q, env override not applied", cfg.Line.ChannelSecret)
+	}
+}
+
+func TestLoad_MissingLineChannelSecret(t *testing.T) {
+	// 有 server.port／postgres.dsn／redis.addr，但沒有 line.channel_secret，
+	// 也沒有對應的環境變數覆寫。
+	dir := writeTempConfig(t, "test", `
+server:
+  port: 8080
+postgres:
+  dsn: "postgres://postgres:postgres@localhost:5432/chuchu?sslmode=disable"
+redis:
+  addr: "localhost:6379"
+`)
+	chdir(t, dir)
+
+	_, err := Load("test")
+	if err == nil {
+		t.Fatalf("Load returned nil error, want *MissingKeyError")
+	}
+
+	missingErr, ok := errors.AsType[*MissingKeyError](err)
+	if !ok {
+		t.Fatalf("Load returned %v (%T), want *MissingKeyError", err, err)
+	}
+	if missingErr.Key != "line.channel_secret" {
+		t.Errorf("MissingKeyError.Key = %q, want %q", missingErr.Key, "line.channel_secret")
+	}
+	if got := err.Error(); !strings.Contains(got, "line.channel_secret") {
+		t.Errorf("Error() = %q, want it to contain %q", got, "line.channel_secret")
 	}
 }

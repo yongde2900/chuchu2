@@ -21,6 +21,9 @@ import (
 	"github.com/yongde2900/chuchu2/api"
 	"github.com/yongde2900/chuchu2/internal/apihttp"
 	"github.com/yongde2900/chuchu2/internal/health"
+	"github.com/yongde2900/chuchu2/internal/line"
+	linepgrepo "github.com/yongde2900/chuchu2/internal/line/pgrepo"
+	"github.com/yongde2900/chuchu2/internal/line/webhookhttp"
 	"github.com/yongde2900/chuchu2/internal/property"
 	"github.com/yongde2900/chuchu2/internal/property/httpapi"
 	"github.com/yongde2900/chuchu2/internal/property/pgrepo"
@@ -36,6 +39,9 @@ type Deps struct {
 
 	// Debug 為 true 時才掛載 GET /debug/panic。
 	Debug bool
+
+	// LineChannelSecret 用來驗證 LINE webhook 的 x-line-signature。
+	LineChannelSecret string
 }
 
 // NewHandler 依 d 組出完整的 HTTP handler：feature 的 handler → 統一錯誤
@@ -46,6 +52,8 @@ func NewHandler(d Deps) http.Handler {
 		health.NewRedisChecker(d.Redis),
 	)
 	propertySvc := property.NewService(pgrepo.New(d.DB))
+	lineSvc := line.NewService(linepgrepo.New(d.DB))
+	lineWebhook := webhookhttp.NewHandler(lineSvc, d.LineChannelSecret, d.Logger)
 
 	srv := &apiServer{
 		healthAPI:   health.NewAPI(healthSvc),
@@ -55,7 +63,7 @@ func NewHandler(d Deps) http.Handler {
 	return server.NewRouter(server.Options{
 		Debug:  d.Debug,
 		Logger: d.Logger,
-	}, apihttp.Mount(srv, d.Logger))
+	}, apihttp.Mount(srv, d.Logger), lineWebhook.Mount())
 }
 
 // apiServer 把兩個 feature 的 handler 併成完整的 api.StrictServerInterface。

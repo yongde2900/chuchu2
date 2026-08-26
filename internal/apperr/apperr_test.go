@@ -16,6 +16,7 @@ func TestHTTPStatus(t *testing.T) {
 		{CodePropertyNotFound, http.StatusNotFound},
 		{CodePropertyDuplicate, http.StatusConflict},
 		{CodeInvalidStatusTransition, http.StatusConflict},
+		{CodeLineSignatureInvalid, http.StatusUnauthorized},
 		{CodeInternal, http.StatusInternalServerError},
 		{Code("SOME_UNKNOWN_CODE"), http.StatusInternalServerError},
 	}

@@ -1,7 +1,7 @@
 # BDD-003 — LINE Messaging API webhook：follow / unfollow 事件接入
 # Created: 2026-08-26
 # Status: approved
-# Working Directory: /Users/jimmy/repo/chuchu2
+# Working Directory: .
 # Source: conversation（2026-08-26 與使用者的四項決定）
 #   1. 事件解析與簽章驗證引入官方 github.com/line/line-bot-sdk-go/v8
 #   2. follow / unfollow 要落地：新增 line_users 表，unfollow 標記而非刪除

@@ -1,8 +1,9 @@
 # PLAN-003 — LINE Messaging API webhook：follow / unfollow 事件接入
 Created: 2026-08-26
-Status: draft
-Working Directory: /Users/jimmy/repo/chuchu2
-BDD Spec: /Users/jimmy/repo/chuchu2/bdd/BDD-003-line-webhook-follow-unfollow.feature
+Status: done
+Approved: 2026-08-26
+Working Directory: .
+BDD Spec: bdd/BDD-003-line-webhook-follow-unfollow.feature
 Language: Go 1.26（module `github.com/yongde2900/chuchu2`，相依 vendored 於 `vendor/`）
 Build cmd: go build ./...
 Test cmd:  go test -race -count=1 ./...
@@ -344,7 +345,7 @@ Max iterations 用預設 **5**。
 ## Sub-Tasks
 
 ### Task 1: 設定新增 required key `line.channel_secret`
-Status: pending
+Status: done
 Directory: internal/config, config
 Depends on: none
 Provides (public interface):
@@ -367,7 +368,7 @@ type Config struct {
 // 環境變數名為 CHUCHU_LINE_CHANNEL_SECRET）。
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 缺少 line.channel_secret 時服務啟動失敗並指出缺少的 key
+- [x] Scenario: 缺少 line.channel_secret 時服務啟動失敗並指出缺少的 key
 
 實作要求：
 
@@ -394,7 +395,7 @@ Expected Goals (from BDD scenarios):
 ---
 
 ### Task 2: `internal/line` 領域層 —— 型別、Repository 契約與 Service
-Status: pending
+Status: done
 Directory: internal/line
 Depends on: none
 Provides (public interface):
@@ -453,7 +454,7 @@ func NewService(repo Repository) *Service
 func (s *Service) Handle(ctx context.Context, events []Event) error
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: LINE 領域層不認得 bun、net/http 與 LINE SDK
+- [x] Scenario: LINE 領域層不認得 bun、net/http 與 LINE SDK
 
 實作要求：
 
@@ -483,7 +484,7 @@ Expected Goals (from BDD scenarios):
 ---
 
 ### Task 3: 垂直切片打通 —— `line_users` migration、pgrepo、webhook transport 與組裝
-Status: pending
+Status: done
 Directory: db, internal/line/pgrepo, internal/line/webhookhttp, internal/apperr, internal/app, cmd/api, test
 Depends on: Task 1, Task 2
 Pass threshold: 8.5
@@ -522,13 +523,13 @@ func lineUserRow(t *testing.T, dsn, userID string) (status string, lastEventAt i
 func lineUsersCount(t *testing.T, dsn string) int
 ```
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: 簽章正確的 follow 事件被接受
-- [ ] Scenario: 簽章錯誤的請求被拒絕且不產生任何資料
-- [ ] Scenario: 缺少 x-line-signature header 的請求被拒絕
-- [ ] Scenario: 簽章正確但 body 不是合法 JSON 時回 400
-- [ ] Scenario: LINE 主控台的連線確認請求（events 為空陣列）回 200
-- [ ] Scenario Outline: 非 follow／unfollow 的事件被忽略但仍回 200
-- [ ] Scenario: 資料庫寫入失敗時回 500，讓 LINE 有機會重送
+- [x] Scenario: 簽章正確的 follow 事件被接受
+- [x] Scenario: 簽章錯誤的請求被拒絕且不產生任何資料
+- [x] Scenario: 缺少 x-line-signature header 的請求被拒絕
+- [x] Scenario: 簽章正確但 body 不是合法 JSON 時回 400
+- [x] Scenario: LINE 主控台的連線確認請求（events 為空陣列）回 200
+- [x] Scenario Outline: 非 follow／unfollow 的事件被忽略但仍回 200
+- [x] Scenario: 資料庫寫入失敗時回 500，讓 LINE 有機會重送
 
 實作要求：
 
@@ -679,18 +680,18 @@ userId 彼此不同（`...0001`、`...0002`、`...0003`…），所以共用容�
 ---
 
 ### Task 4: 事件語意端到端 —— 標記封鎖、重加好友、多事件、重送、亂序
-Status: pending
+Status: done
 Directory: test
 Depends on: Task 3
 Provides (public interface): 無新的匯出介面。本 task 的產出是 `test/line_event_semantics_test.go`
 （`package test`），沿用 Task 3 在 `test/line_webhook_test.go` 建立的輔助函式；若過程中發現
 `internal/line/pgrepo` 的 upsert SQL 或 `internal/line` 的事件套用邏輯有缺口，一併修正。
 Expected Goals (from BDD scenarios):
-- [ ] Scenario: unfollow 事件把好友標記為封鎖而不是刪除記錄
-- [ ] Scenario: 封鎖後重新加好友會讓同一筆記錄回到 FOLLOWING，不會產生第二筆
-- [ ] Scenario: 一次 webhook 帶多個事件時全部都會被處理
-- [ ] Scenario: 同一個事件被重送兩次仍然只有一筆記錄
-- [ ] Scenario: 亂序抵達的舊 unfollow 事件不會覆蓋較新的 follow 狀態
+- [x] Scenario: unfollow 事件把好友標記為封鎖而不是刪除記錄
+- [x] Scenario: 封鎖後重新加好友會讓同一筆記錄回到 FOLLOWING，不會產生第二筆
+- [x] Scenario: 一次 webhook 帶多個事件時全部都會被處理
+- [x] Scenario: 同一個事件被重送兩次仍然只有一筆記錄
+- [x] Scenario: 亂序抵達的舊 unfollow 事件不會覆蓋較新的 follow 狀態
 
 實作要求：
 
@@ -762,3 +763,56 @@ Expected Goals (from BDD scenarios):
 搬進 `internal/line`，它就會轉紅，而那時 Task 2 早就標記 done 了。）
 
 ## Iteration Log
+
+### Task 1 — Iter 1 — score 9.3/10 — PASS
+- Changed: `internal/config/config.go`（新增 `LineConfig`、`Config.Line`、`requiredKeys`/`knownKeys` 追加
+  `line.channel_secret`，順序在 `postgres.dsn` 之後）；`config/test.yaml`（追加
+  `line.channel_secret: "test-channel-secret"`）；`internal/config/config_test.go`（新增
+  `TestLoad_MissingLineChannelSecret`，修好 `TestLoad_ValidConfig`／`TestLoad_EnvOverride`／
+  `TestLoad_EnvOverrideSatisfiesMissingKey` 的 fixture）。`config/broken.yaml` 未變動。
+- Remaining: 無 —— scenario met，`go build ./...`、`go vet ./internal/config/...`、
+  `go test -race -count=1 ./...`（含 Docker 背後的 `test/startup_test.go`）全綠。
+
+### Task 2 — Iter 1 — score 9.3/10 — PASS
+- Changed: 新增 `internal/line/line.go`（`Status`、`EventType`、`Event`、`User`）、
+  `internal/line/service.go`（`Repository`、`Service`、`Handle`）、
+  `internal/line/line_test.go`、`internal/line/service_test.go`（手寫 fake `Repository`）、
+  `internal/line/layering_test.go`（`go/build.ImportDir` 守住不含 bun／net/http／LINE SDK）。
+  未動任何既有檔案。
+- Remaining: 無 —— scenario met，layering guard 獨立驗證 `pkg.Imports` 只有 `[context time]`，
+  `go build ./...`、`go vet ./internal/line/...`、`go test -race -count=1 ./internal/line/...` 全綠。
+
+### Task 3 — Iter 1 — score 9.5/10 — PASS
+- Changed: 新增 migration `db/20260826120000_create_line_users.tx.{up,down}.sql`、
+  `internal/line/pgrepo/pgrepo.go`（單一敘述 `ON CONFLICT ... WHERE` upsert，
+  `alias:line_users`，`RowsAffected()==0` 不視為錯誤，`created_at` 只在 INSERT 寫入）、
+  `internal/line/webhookhttp/webhookhttp.go` + 測試（直接用 `webhook.ParseRequest`，
+  `errors.Is(err, webhook.ErrInvalidSignature)` 分流 401/400）、`test/line_webhook_test.go`
+  （含 Task 4 要沿用的輔助函式）；修改 `internal/apperr`（新增 `LINE_SIGNATURE_INVALID` → 401）、
+  `internal/app/app.go`（`Deps.LineChannelSecret`，`linepgrepo` 別名接線）、`cmd/api/main.go`、
+  `test/inprocess_test.go`；`go.mod`/`go.sum`/`vendor` 新增
+  `github.com/line/line-bot-sdk-go/v8@v8.22.0`。
+- Remaining: 無 —— 7 個 scenario 全數 met（Evaluator 逐條核對 11 項技術約束：`.tx.` 檔名、
+  bun alias 陷阱、單一敘述 upsert、`RowsAffected==0` 非錯誤、`created_at` 保留、不用
+  `webhook.WebhookHandler`、401/400 分流、`api/openapi.yaml` 零變動且 `TestCodegen` 綠燈、
+  `internal/line` 分層守門仍綠、`pgrepo` 別名編譯成功、DB 寫入失敗測試用真的未 migrate
+  專屬容器而非 mock），並額外查證 SDK `UnmarshalEvent`/`UnmarshalSource` 實際回傳值型別
+  （非指標）與程式碼判斷相符。`go build ./...`、`go vet ./...`、
+  `go test -race -count=1 ./...`（含 `test/codegen_test.go`）全綠。
+
+### Task 4 — Iter 1 — score 9.5/10 — PASS
+- Changed: 新增 `test/line_event_semantics_test.go`（5 個測試對應 5 個 scenario，沿用 Task 3 的
+  輔助函式，另加 `lineUserCreatedAt`／`lineUserCountForID`／`twoFollowEventsBody` 三個本檔案
+  local 的小 helper）。Task 3 的實作沒有發現 bug，未修改任何非測試檔案。
+- Remaining: 無 —— Evaluator 對「亂序」scenario 做了 mutation test（拿掉 pgrepo 的
+  `WHERE last_event_at <= EXCLUDED.last_event_at` 守門條件）確認測試真的會轉紅，
+  其餘 4 條也逐一核對「會不會抓到對應的無聲 bug」（delete-then-reinsert、table-wide count
+  誤判、多事件變兩次 POST、resend 兩個獨立產生的 body）。`go build ./...`、`go vet ./...`、
+  `go test -race -count=1 ./...` 全綠，四個 sub-task 全數 done。
+
+### hars-verify — 整合驗證 — PASS
+- `go build ./...`、`go vet ./...`、`go test -race -count=1 ./...`（全專案，非 task 範圍限定）全綠。
+- 13 條 Integration Scenario 逐條對已組裝系統（`app.NewHandler` 真實 HTTP + 真實 Postgres/Redis）
+  跑過，全數 PASS：`TestLineWebhook_*`（7 條，含 Scenario Outline 的 message／postback／join
+  三個 Examples）、`TestLineEventSemantics_*`（5 條）、`TestLayering_NoForbiddenImports`（1 條）。
+- Plan 標記 `Status: done`；知識庫沉澱交給 save-to-knowledge-base skill。

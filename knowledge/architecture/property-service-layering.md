@@ -2,7 +2,7 @@
 title: chuchu2 分層邊界以「套件邊界」表達
 type: architecture
 date: 2026-08-20
-tags: [layering, packages, go, property]
+tags: [layering, packages, go, property, line]
 ---
 
 chuchu2（包租代管服務）刻意讓分層邊界成為**套件邊界**，而不是只寫在文件裡的約定。
@@ -30,12 +30,31 @@ internal/app/                **組裝點** —— 唯一 import 多個 feature �
   `apiServer` 放在 `cmd/api`，組裝點仍然只有那一處。見
   [[cannot-embed-two-same-named-types]] 說明它為什麼不能用 embedding 寫。
 
-**三個刻意保留的依賴反轉點：**
+**四個刻意保留的依賴反轉點：**
 
 1. `property.Repository` 介面 —— 領域層因此不認識 bun。
 2. `health.Checker` 介面 —— 可加掛新探針而不動 `internal/health`。
 3. `server.Mount`（`type Mount func(r chi.Router)`）—— feature 套件自己宣告路由，
    所以 `internal/server` 不需要 import `internal/health` 或 `internal/property/...`。
+4. `line.Repository` 介面（PLAN-003 新增）—— 與 `property.Repository` 同一個模式，
+   `internal/line` 領域層不認識 bun、net/http，也不認識 LINE SDK。
+
+**PLAN-003（LINE webhook）延伸出的第三種子套件角色：**
+
+```
+internal/line/               純領域＋service＋Repository 介面
+                             —— 不 import bun、不 import net/http、不 import LINE SDK
+internal/line/pgrepo/        bun 實作 —— 唯一 import bun 的 line 子套件
+internal/line/webhookhttp/   webhook handler —— 這個 feature 唯一被允許
+                             同時 import net/http 與第三方 SDK 的子套件
+```
+
+`webhookhttp` 與 `property/httpapi` 是不同的角色，命名刻意不同：`httpapi` 是「產生的 api
+型別 ↔ 領域型別」轉換層，連 net/http 都不 import；`webhookhttp` 相反，是整個 feature 唯一
+容許出現 net/http 與外部 SDK 的地方（因為 LINE SDK 的 `webhook` package 自己也 import
+net/http，任何 import 它的套件都會傳遞性帶進 net/http —— 這正是它不能待在 `internal/line`
+裡的原因）。兩個 feature 各自的 `pgrepo` 子套件**同名**（都叫 `pgrepo`），`internal/app`
+同時 import 兩者時必須給其中一個 import 別名，否則編譯失敗。
 
 **為什麼重要：** 這是 PLAN-001 骨架最主要的價值，但它寫不成可斷言的 BDD `Then`，
 harness 抓不到違規，只能靠 code review。把它變成套件邊界後，違規至少是可 grep 的。
